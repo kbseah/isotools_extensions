@@ -230,11 +230,17 @@ def test_ale_afe(
     # There should be only two groups
     groupnames, groups, grp_idx = _check_groups(transcriptome, groups)
     sidx = np.array(grp_idx[0] + grp_idx[1])
-    if isinstance(test, str) and test == "auto":
-        if min(len(group) for group in groups[:2]) > 1:
-            test = TESTS["betabinom_lr"]
+    if isinstance(test, str):
+        if test == "auto":
+            if min(len(group) for group in groups[:2]) > 1:
+                test = TESTS["betabinom_lr"]
+            else:
+                test = TESTS["proportions"]
         else:
-            test = TESTS["proportions"]
+            try:
+                test = TESTS[test]
+            except KeyError:
+                raise KeyError(f"Test name {test} not found")
     sg = gene.segment_graph
     res = []
     for which in ["ALE", "AFE"]:
@@ -255,6 +261,13 @@ def test_ale_afe(
             pval, params = test(x[:2], n[:2])
             start, end = sg[nX].end, sg[nY].start
             # TODO nmdA, nmdB
+            # TODO Define coordinates with e1; s2; e2; s3; e3 like in SUPPA2
+            covs = [
+                val
+                for lists in zip(x,n)
+                for pair in zip(*lists)
+                for val in pair
+            ]
             res.append(
                 [
                     gene.name,
@@ -273,6 +286,7 @@ def test_ale_afe(
                     nodesB,
                 ]
                 + list(params)
+                + covs
             )
     colnames = [
         "gene",
@@ -294,5 +308,11 @@ def test_ale_afe(
         groupname + part
         for groupname in groupnames[:2] + ["total"] + groupnames[2:]
         for part in ["_PSI", "_disp"]
+    ]
+    colnames += [
+        f"{sample}_{groupname}_{w}"
+        for groupname, group in zip(groupnames, groups)
+        for sample in group
+        for w in ["_in_cov", "_total_cov"]
     ]
     return pd.DataFrame(res, columns=colnames)
