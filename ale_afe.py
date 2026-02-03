@@ -199,9 +199,7 @@ def find_afe_ale(gene, which: str = "ALE"):
                 e2 = gene.segment_graph[prim_nodes[-1][1]].end
                 s3 = gene.segment_graph[alt_nodes[0][0]].start
                 e3 = gene.segment_graph[alt_nodes[-1][1]].end
-                coord = (
-                    f"{str(e1)}-{str(s2)}:{str(e2)}:{str(e1)}-{str(s3)}:{str(e3)}"
-                )
+                coord = f"{str(e1)}-{str(s2)}:{str(e2)}:{str(e1)}-{str(s3)}:{str(e3)}"
                 yield (
                     prim_set,
                     alt_set,
@@ -224,9 +222,7 @@ def find_afe_ale(gene, which: str = "ALE"):
                 e1 = gene.segment_graph[prim_nodes[-1][1]].end
                 s2 = gene.segment_graph[alt_nodes[0][0]].start
                 e2 = gene.segment_graph[alt_nodes[-1][1]].end
-                coord = (
-                    f"{str(s1)}:{str(e1)}-{str(s3)}:{str(s2)}:{str(e2)}-{str(s3)}"
-                )
+                coord = f"{str(s1)}:{str(e1)}-{str(s3)}:{str(s2)}:{str(e2)}-{str(s3)}"
                 yield (
                     prim_set,
                     alt_set,
