@@ -137,6 +137,8 @@ def get_ale_afe(segment_graph, which="ALE"):
         which == "AFE" and segment_graph.strand == "+"
     ):
         suc_nodes = []
+        # TODO use the isotools annotations instead, because some instances of
+        # novel transcripts get called fragments too
         fragments = segment_graph.find_fragments()
         # Find splice junctions immediately after first exons
         # (second splice junctions)
@@ -161,7 +163,7 @@ def get_ale_afe(segment_graph, which="ALE"):
     return out
 
 
-def find_afe_ale(gene, which="ALE"):
+def find_afe_ale(gene, which: str = "ALE"):
     """Generator for ALE/AFE events similar to find_splice_bubbles
 
     ALE and AFE can't be uniquely defined with two nodes, so we also return the
@@ -174,33 +176,67 @@ def find_afe_ale(gene, which="ALE"):
     :param gene: isotools.Gene object
     :param which: Either "ALE" or "AFE"
     :returns tuple: Tuple with elements: primary isoform transcripts (list of
-    transcript indices), alternate isoform transcripts, left node, right node,
-    event ("AFE" or "ALE"), primary isoform nodes, alternate isoform nodes.
+    transcript indices), alternate isoform transcripts (list), start coordinate
+    (int), end coordinate (int), event type, either "AFE" or "ALE" (str),
+    primary isoform nodes (tuple), alternate isoform nodes (tuple).
+    :rtype: list
     """
     events = get_ale_afe(gene.segment_graph, which=which)
     for pre in events:
         for i, j in combinations(events[pre].keys(), 2):
+            # Skip cases with overlapping exons, represent other splice events
+            if any(exon in i for exon in j):
+                continue
             if (which == "ALE" and gene.strand == "+") or (
                 which == "AFE" and gene.strand == "-"
             ):
-                # Skip cases with common exon, will be covered by distal nodes
-                if i[0] != j[0]:
-                    prim_nodes, alt_nodes = sorted((i, j))
-                    prim_set = events[pre][prim_nodes]
-                    alt_set = events[pre][alt_nodes]
-                    nX = pre
-                    nY = max([m for n in i + j for m in n])
-                    yield (prim_set, alt_set, nX, nY, which, prim_nodes, alt_nodes)
+                prim_nodes, alt_nodes = sorted((i, j))
+                prim_set = events[pre][prim_nodes]
+                alt_set = events[pre][alt_nodes]
+                # SUPPA2-like coordinates
+                e1 = gene.segment_graph[pre].end
+                s2 = gene.segment_graph[prim_nodes[0][0]].start
+                e2 = gene.segment_graph[prim_nodes[-1][1]].end
+                s3 = gene.segment_graph[alt_nodes[0][0]].start
+                e3 = gene.segment_graph[alt_nodes[-1][1]].end
+                coord = (
+                    f"{str(e1)}-{str(s2)}:{str(e2)}:{str(e1)}-{str(s3)}:{str(e3)}"
+                )
+                yield (
+                    prim_set,
+                    alt_set,
+                    e2,
+                    e3,
+                    which,
+                    prim_nodes,
+                    alt_nodes,
+                    coord,
+                )
             elif (which == "AFE" and gene.strand == "+") or (
                 which == "ALE" and gene.strand == "-"
             ):
-                if i[-1] != j[-1]:
-                    prim_nodes, alt_nodes = sorted((i, j))
-                    prim_set = events[pre][prim_nodes]
-                    alt_set = events[pre][alt_nodes]
-                    nX = min([m for n in i + j for m in n])
-                    nY = pre
-                    yield (prim_set, alt_set, nX, nY, which, prim_nodes, alt_nodes)
+                prim_nodes, alt_nodes = sorted((i, j))
+                prim_set = events[pre][prim_nodes]
+                alt_set = events[pre][alt_nodes]
+                # SUPPA2-like coordinates
+                s3 = gene.segment_graph[pre].start
+                s1 = gene.segment_graph[prim_nodes[0][0]].start
+                e1 = gene.segment_graph[prim_nodes[-1][1]].end
+                s2 = gene.segment_graph[alt_nodes[0][0]].start
+                e2 = gene.segment_graph[alt_nodes[-1][1]].end
+                coord = (
+                    f"{str(s1)}:{str(e1)}-{str(s3)}:{str(s2)}:{str(e2)}-{str(s3)}"
+                )
+                yield (
+                    prim_set,
+                    alt_set,
+                    s1,
+                    s2,
+                    which,
+                    prim_nodes,
+                    alt_nodes,
+                    coord,
+                )
 
 
 def test_ale_afe(
@@ -213,7 +249,7 @@ def test_ale_afe(
     min_sa: float = 0.51,
     test="auto",  # either string with test name or a custom test function
     padj_method="fdr_bh",
-    **kwargs
+    **kwargs,
 ):
     """Test for alternative last/first exon (ALE/AFE) events
 
@@ -244,7 +280,7 @@ def test_ale_afe(
     sg = gene.segment_graph
     res = []
     for which in ["ALE", "AFE"]:
-        for setA, setB, nX, nY, splice_type, nodesA, nodesB in find_afe_ale(
+        for setA, setB, start, end, splice_type, nodesA, nodesB, coord in find_afe_ale(
             gene, which
         ):
             junction_cov = gene.coverage[:, setB].sum(1)
@@ -259,15 +295,8 @@ def test_ale_afe(
             if sum((ni >= min_n).sum() for ni in n[:2]) < min_sa:
                 continue
             pval, params = test(x[:2], n[:2])
-            start, end = sg[nX].end, sg[nY].start
             # TODO nmdA, nmdB
-            # TODO Define coordinates with e1; s2; e2; s3; e3 like in SUPPA2
-            covs = [
-                val
-                for lists in zip(x,n)
-                for pair in zip(*lists)
-                for val in pair
-            ]
+            covs = [val for lists in zip(x, n) for pair in zip(*lists) for val in pair]
             res.append(
                 [
                     gene.name,
@@ -284,6 +313,7 @@ def test_ale_afe(
                     n,
                     nodesA,
                     nodesB,
+                    coord,
                 ]
                 + list(params)
                 + covs
@@ -303,6 +333,7 @@ def test_ale_afe(
         "n",
         "nodesA",
         "nodesB",
+        "coord",
     ]
     colnames += [
         groupname + part
