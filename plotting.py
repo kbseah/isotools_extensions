@@ -3,9 +3,11 @@
 import matplotlib.pyplot as plt
 import isotools._utils
 import numpy as np
+import pandas as pd
 from scipy.signal import find_peaks
 from collections import defaultdict
-
+from itertools import combinations
+from isotools._transcriptome_stats import _check_groups, TESTS
 
 def plot_transcript_terminal_pileup(
     gene, trid: int, which="PAS", total: bool = False, show_unified: bool = False
@@ -287,3 +289,117 @@ def plot_gene_terminal_peaks(
             )
         myax.set_xlim(xlim)
     return fig, ax, pileup, smoothed, peaks, peak_assignments
+
+
+def test_alternative_pas(
+    transcriptome, gene, groups:dict, smooth_window:int=31, prominence:int=2,
+    min_total: int = 100, min_alt_fraction: float = 0.01,  # different from Isotools default
+    min_n: int = 5, min_sa: float = 0.51, test="auto",  # either string with test name or a custom test function
+    padj_method="fdr_bh",
+    **kwargs,
+):
+    """Identify and test alternative PAS within an isotools Gene
+
+    Isotools chooses a unified PAS per transcript by default. However,
+    transcripts are defined by their internal splice sites, so a single
+    transcript may have multiple PAS, not captured by the unified PAS. This
+    function calls all PAS peaks for all transcripts of a given gene, then
+    tests for differential usage of these PAS between groups, without relying
+    on a unified consensus for each transcript.
+
+    :param transcriptome: isotools.Transcriptome object
+    :param gene: isotools.Gene object from the transcriptome
+    :param groups: Dict mapping sample names to group names
+    :param smooth_window: Window size for smoothing function in peak calling
+    :param prominence: Minimum peak prominence to retain in peak calling
+    :param min_total: Minimum total counts across all samples to consider a PAS
+    :param min_alt_fraction: Minimum fraction of counts at an alternative PAS
+        to consider it for testing
+    :param min_n:
+    :param min_sa:
+    :param test: Either "auto" to use isotools default test, or a custom test function
+    :param padj_method: Method for multiple testing correction
+    :param **kwargs: Additional parameters passed to the test function
+    """
+    pileup, coords, smoothed, peaks, peak_assignments = get_gene_terminal_peaks(
+        gene=gene,
+        which="PAS",
+        total=True,
+        smooth_window=smooth_window,
+        prominence=prominence,
+    )
+    groupnames, groups_arr, grp_idx = _check_groups(transcriptome, groups)
+    # Choose appropriate test
+    if isinstance(test, str):
+        if test == "auto":
+            if min(len(group) for group in groups_arr[:2]) > 1:
+                test = TESTS["betabinom_lr"]
+            else:
+                test = TESTS["proportions"]
+        else:
+            try:
+                test = TESTS[test]
+            except KeyError:
+                raise KeyError(f"Test name {test} not found")
+    # TODO: report number of reads not assigned to a called peak
+    # Count coverage per PAS peak per group/sample
+    group_cov = defaultdict(lambda: defaultdict(int)) # pas, group -> [cov]
+    for i in peak_assignments['total']:
+        for g in groups:
+            group_cov[i][g] = [peak_assignments['total'][i][s] for s in groups[g]]
+    if min_sa < 1:
+        min_sa *= sum(len(group) for group in groups_arr[:2])
+    # Take pairwise combinations of alternative PAS and test for differential coverage
+    res = []
+    for i, j in combinations(group_cov, 2):
+        x = [np.array(group_cov[i][g]) for g in groups]
+        y = [np.array(group_cov[j][g]) for g in groups]
+        n = [np.array(group_cov[i][g]) + np.array(group_cov[j][g]) for g in groups]
+        total_cov = sum([e.sum() for e in n])
+        alt_cov = sum([e.sum() for e in x])
+        if total_cov < min_total:
+            continue
+        if alt_cov / total_cov < min_alt_fraction or alt_cov / total_cov > (1 - min_alt_fraction):
+            continue
+        # TODO this doesn't look right given the definition of min_sa in Isotools docstring
+        if sum((ni>=min_n).sum() for ni in n[:2]) < min_sa:
+            continue
+        pval, params = test(x[:2],n[:2])
+        covs = [val for lists in zip(x, n) for pair in zip(*lists) for val in pair]
+        res.append([
+            gene.name,
+            gene.id,
+            gene.chrom,
+            gene.strand,
+            peaks['total'][0][i],
+            peaks['total'][0][j],
+            "PAS",
+            pval,
+            x,
+            n,
+        ] + list(params) + covs )
+    colnames = [
+        "gene",
+        "gene_id",
+        "chrom",
+        "strand",
+        "start",
+        "end",
+        "splice_type",
+        "pvalue",
+        "x",
+        "n",
+    ]
+    colnames += [
+        groupname + part
+        for groupname in groupnames[:2] + ["total"] + groupnames[2:]
+        for part in ["_PSI", "_disp"]
+    ]
+    colnames += [
+        f"{sample}_{groupname}_{w}"
+        for groupname, group in zip(groupnames, groups_arr)
+        for sample in group
+        for w in ["_in_cov", "_total_cov"]
+    ]
+    return pd.DataFrame(res, columns=colnames)
+
