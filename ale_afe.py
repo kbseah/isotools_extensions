@@ -274,6 +274,8 @@ def test_ale_afe(
             except KeyError:
                 raise KeyError(f"Test name {test} not found")
     sg = gene.segment_graph
+    if min_sa < 1:
+        min_sa *= sum(len(group) for group in groups[:2])
     res = []
     for which in ["ALE", "AFE"]:
         for setA, setB, start, end, splice_type, nodesA, nodesB, coord in find_afe_ale(
