@@ -217,6 +217,9 @@ def get_gene_terminal_peaks(
         # peaks coordinates are indices of coords
         peaks["total"] = find_peaks(smoothed["total"], prominence=(prominence, None))
         peaks["total"] = translate_peaks_offset(peaks["total"], min(coords["total"]))
+        # If no peaks found, return black
+        if len(peaks["total"][0]) == 0:
+            return pileup, coords, smoothed, None, None
         # We cannot use left_base and right_base from find_peaks directly, because
         # the intervals overlap, see https://github.com/scipy/scipy/issues/19232
         peak_assignments["total"] = defaultdict(
@@ -313,6 +316,9 @@ def plot_gene_terminal_peaks(
         smooth_window=smooth_window,
         prominence=prominence,
     )
+    # No peaks found, likely because coverage is too low
+    if peaks is None:
+        return None, None, pileup, smoothed, peaks, peak_assignments
     # Set xlim around peaks only
     xlim = (
         min(peaks["total"][0]) - smooth_window,
@@ -409,6 +415,9 @@ def test_alternative_pas(
         smooth_window=smooth_window,
         prominence=prominence,
     )
+    # No peaks found, likely because coverage is too low
+    if peaks is None:
+        return
     groupnames, groups_arr, grp_idx = _check_groups(transcriptome, groups)
     # Choose appropriate test
     if isinstance(test, str):
