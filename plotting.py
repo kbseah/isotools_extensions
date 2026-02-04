@@ -375,6 +375,7 @@ def plot_gene_terminal_peaks(
     return fig, ax, pileup, smoothed, peaks, peak_assignments
 
 
+# TODO: Group transcripts by common last exon and call alternative PAS events only for transcripts that share the same last exon, to avoid conflating ALEs and APAs
 def test_alternative_pas(
     transcriptome,
     gene,
