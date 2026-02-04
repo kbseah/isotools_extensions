@@ -49,6 +49,52 @@ def plot_transcript_terminal_pileup(
         raise KeyError("Parameter `which` must be either 'PAS' or 'TSS'")
 
 
+def plot_gene_terminal_pileup(
+    gene, which="PAS", total: bool = False, show_range_minpeak:int=5, plot_margin:int=31,
+):
+    """Plot pileup of PAS or TSS for an isotools Gene
+
+    :param gene: isotools.Gene object
+    :param which: Either "PAS" or "TSS"
+    :param total: Sum pileups for all samples if True, else plot samples
+        separately
+    :param show_range_minpeak: Minimum peak height when choosing range to
+        display; peaks below this height will be ignored when setting x-axis
+        limits
+    :returns: Figure and axis objects
+    """
+    try:
+        pileups = defaultdict(lambda: defaultdict(int))
+        for transcript in gene.transcripts:
+            for sample in transcript[which]:
+                for pos in transcript[which][sample]:
+                    pileups[sample][pos] += transcript[which][sample][pos]
+        pileup = {}
+        for sample in pileups:
+            for idx in pileups[sample]:
+                pileup[idx] = pileup.get(idx, 0) + pileups[sample][idx]
+        xlim = (
+            min([x for x in pileup if pileup[x] >= show_range_minpeak]) - plot_margin,
+            max([x for x in pileup if pileup[x] >= show_range_minpeak]) + plot_margin
+        )
+        if total:
+            fig, ax = plt.subplots(1, 1, figsize=(8, 1))
+            xx = list(pileup.keys())
+            yy = list(pileup.values())
+            ax.vlines(xx, ymin=[0 for y in yy], ymax=yy)
+            ax.set_xlim(xlim)
+        else:
+            fig, ax = plt.subplots(len(pileups), 1, figsize=(8, 1*len(pileups)), sharex=True)
+            for i, sample in enumerate(pileups):
+                xx = list(pileups[sample].keys())
+                yy = list(pileups[sample].values())
+                ax[i].vlines(xx, ymin=[0 for y in yy], ymax=yy)
+            ax[-1].set_xlim(xlim)
+        return (fig, ax)
+    except KeyError:
+        raise KeyError("Parameter `which` must be either 'PAS' or 'TSS'")
+
+
 def pileup_to_smoothed(pileup, smooth_window: int = 31):
     """Smooth a coverage pileup
 
