@@ -97,14 +97,19 @@ def get_transcript_terminal_peaks(
         pileup["total"], coords["total"], smoothed["total"] = pileup_to_smoothed(
             pileup_sum, smooth_window
         )
-        peaks["total"] = find_peaks(smoothed["total"], prominence=(prominence, None))
+        peaks["total"] = translate_peaks_offset(
+            find_peaks(smoothed["total"], prominence=(prominence, None)),
+            min(coords["total"]),
+        )
     else:
         for sample in gene.transcripts[trid][which]:
             pileup[sample], coords[sample], smoothed[sample] = pileup_to_smoothed(
                 gene.transcripts[trid][which][sample], smooth_window
             )
-            # peaks coordinates are indices of coords
-            peaks[sample] = find_peaks(smoothed[sample], prominence=(prominence, None))
+            peaks[sample] = translate_peaks_offset(
+                find_peaks(smoothed[sample], prominence=(prominence, None)),
+                min(coords[sample]),
+            )
     return (pileup, coords, smoothed, peaks)
 
 
@@ -114,6 +119,19 @@ def assign_to_closest_peak(pos, peaks):
     closest_index = np.argmin(dist)
     return closest_index, dist[closest_index]
 
+
+def translate_peaks_offset(peaks, offset):
+    # Translate array indices back to genomic coordinates
+    peaks_new = (
+        np.array([p + offset for p in peaks[0]]),
+        {
+            "prominences" : peaks[1]["prominences"],
+            "left_bases": np.array([lb + offset for lb in peaks[1]["left_bases"]]),
+            "right_bases": np.array([rb + offset for rb in peaks[1]["right_bases"]]),
+        },
+    )
+    return peaks_new
+ 
 
 def get_gene_terminal_peaks(
     gene,
@@ -140,15 +158,14 @@ def get_gene_terminal_peaks(
     pileup, coords, smoothed = pileup_to_smoothed(pileup_sum, smooth_window)
     # peaks coordinates are indices of coords
     peaks = find_peaks(smoothed, prominence=(prominence, None))
-    # Translate array indices back to genomic coordinates
-    peak_coords = [p + min(coords) for p in peaks[0]]
+    peaks = translate_peaks_offset(peaks, min(coords))
     # We cannot use left_base and right_base from find_peaks directly, because
     # the intervals overlap, see https://github.com/scipy/scipy/issues/19232
     peak_assignments = defaultdict(lambda: defaultdict(int))  # peak, sample -> count
     for trid, transcript in enumerate(gene.transcripts):
         for sample in transcript[which]:
             for pos in transcript[which][sample]:
-                closest_index, distance = assign_to_closest_peak(pos, peak_coords)
+                closest_index, distance = assign_to_closest_peak(pos, peaks[0])
                 if distance <= smooth_window:
                     peak_assignments[closest_index][sample] += transcript[which][
                         sample
@@ -194,10 +211,9 @@ def plot_transcript_terminal_peaks(
         else:
             myax = ax[idx]
         myax.plot(coords[s], smoothed[s])
-        # peaks coordinates are indices of coords: convert back to genomic coords
         if show_peaks:
             myax.vlines(
-                [x + min(coords[s]) for x in peaks[s][0]],
+                peaks[s][0],
                 ymin=[0 for i in peaks[s][0]],
                 ymax=peaks[s][1]["prominences"],
                 color="red",
