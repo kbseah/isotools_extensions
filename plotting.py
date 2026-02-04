@@ -136,7 +136,7 @@ def get_gene_terminal_peaks(
     gene,
     which="PAS",
     smooth_window: int = 31,
-    total: bool = False,
+    total: bool = True,
     prominence: int = 2,
 ):
     """Get PAS/TSS peaks for an isotools Gene, summing across all transcripts
@@ -147,7 +147,7 @@ def get_gene_terminal_peaks(
     :param gene: isotools.Gene object
     :param which: Either "PAS" or "TSS"
     :param smooth_window: Window size for smoothing function
-    :param total: Sum pileups for all samples if True, else call peaks for each sample separately
+    :param total: Sum pileups for all samples if True, else call peaks for each sample separately (FALSE NOT IMPLEMENTED)
     :param prominence: Minimum peak prominence to retain
     """
     assert which in ["PAS", "TSS"], "which must be either 'PAS' or 'TSS' only"
@@ -174,8 +174,8 @@ def get_gene_terminal_peaks(
                             sample
                         ][pos]
     else:
-        pass
         # TODO
+        raise NotImplementedError("Per-sample peak calling not yet implemented")
     return pileup, coords, smoothed, peaks, peak_assignments
 
 
