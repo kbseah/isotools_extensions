@@ -9,6 +9,7 @@ from collections import defaultdict
 from itertools import combinations
 from isotools._transcriptome_stats import _check_groups, TESTS
 
+
 def plot_transcript_terminal_pileup(
     gene, trid: int, which="PAS", total: bool = False, show_unified: bool = False
 ):
@@ -50,7 +51,11 @@ def plot_transcript_terminal_pileup(
 
 
 def plot_gene_terminal_pileup(
-    gene, which="PAS", total: bool = False, show_range_minpeak:int=5, plot_margin:int=31,
+    gene,
+    which="PAS",
+    total: bool = False,
+    show_range_minpeak: int = 5,
+    plot_margin: int = 31,
 ):
     """Plot pileup of PAS or TSS for an isotools Gene
 
@@ -75,7 +80,7 @@ def plot_gene_terminal_pileup(
                 pileup[idx] = pileup.get(idx, 0) + pileups[sample][idx]
         xlim = (
             min([x for x in pileup if pileup[x] >= show_range_minpeak]) - plot_margin,
-            max([x for x in pileup if pileup[x] >= show_range_minpeak]) + plot_margin
+            max([x for x in pileup if pileup[x] >= show_range_minpeak]) + plot_margin,
         )
         if total:
             fig, ax = plt.subplots(1, 1, figsize=(8, 1))
@@ -84,7 +89,9 @@ def plot_gene_terminal_pileup(
             ax.vlines(xx, ymin=[0 for y in yy], ymax=yy)
             ax.set_xlim(xlim)
         else:
-            fig, ax = plt.subplots(len(pileups), 1, figsize=(8, 1*len(pileups)), sharex=True)
+            fig, ax = plt.subplots(
+                len(pileups), 1, figsize=(8, 1 * len(pileups)), sharex=True
+            )
             for i, sample in enumerate(pileups):
                 xx = list(pileups[sample].keys())
                 yy = list(pileups[sample].values())
@@ -170,13 +177,13 @@ def translate_peaks_offset(peaks, offset):
     peaks_new = (
         np.array([p + offset for p in peaks[0]]),
         {
-            "prominences" : peaks[1]["prominences"],
+            "prominences": peaks[1]["prominences"],
             "left_bases": np.array([lb + offset for lb in peaks[1]["left_bases"]]),
             "right_bases": np.array([rb + offset for rb in peaks[1]["right_bases"]]),
         },
     )
     return peaks_new
- 
+
 
 def get_gene_terminal_peaks(
     gene,
@@ -204,21 +211,27 @@ def get_gene_terminal_peaks(
             for sample in transcript[which]:
                 for pos, cov in transcript[which][sample].items():
                     pileup_sum[pos] = pileup_sum.get(pos, 0) + cov
-        pileup['total'], coords['total'], smoothed['total'] = pileup_to_smoothed(pileup_sum, smooth_window)
+        pileup["total"], coords["total"], smoothed["total"] = pileup_to_smoothed(
+            pileup_sum, smooth_window
+        )
         # peaks coordinates are indices of coords
-        peaks['total'] = find_peaks(smoothed['total'], prominence=(prominence, None))
-        peaks['total'] = translate_peaks_offset(peaks['total'], min(coords['total']))
+        peaks["total"] = find_peaks(smoothed["total"], prominence=(prominence, None))
+        peaks["total"] = translate_peaks_offset(peaks["total"], min(coords["total"]))
         # We cannot use left_base and right_base from find_peaks directly, because
         # the intervals overlap, see https://github.com/scipy/scipy/issues/19232
-        peak_assignments['total'] = defaultdict(lambda: defaultdict(int))  # peak, sample -> count
+        peak_assignments["total"] = defaultdict(
+            lambda: defaultdict(int)
+        )  # peak, sample -> count
         for trid, transcript in enumerate(gene.transcripts):
             for sample in transcript[which]:
                 for pos in transcript[which][sample]:
-                    closest_index, distance = assign_to_closest_peak(pos, peaks['total'][0])
+                    closest_index, distance = assign_to_closest_peak(
+                        pos, peaks["total"][0]
+                    )
                     if distance <= smooth_window:
-                        peak_assignments['total'][closest_index][sample] += transcript[which][
-                            sample
-                        ][pos]
+                        peak_assignments["total"][closest_index][sample] += transcript[
+                            which
+                        ][sample][pos]
     else:
         # TODO
         raise NotImplementedError("Per-sample peak calling not yet implemented")
@@ -277,9 +290,9 @@ def plot_gene_terminal_peaks(
     gene,
     which="PAS",
     total=True,
-    smooth_window:int=31,
-    show_peaks:bool=True,
-    prominence:int=2,
+    smooth_window: int = 31,
+    show_peaks: bool = True,
+    prominence: int = 2,
 ):
     """Plot PAS/TSS called peaks for an isotools gene
 
@@ -301,13 +314,29 @@ def plot_gene_terminal_peaks(
         prominence=prominence,
     )
     # Set xlim around peaks only
-    xlim = (min(peaks['total'][0]) - smooth_window, max(peaks['total'][0]) + smooth_window)
+    xlim = (
+        min(peaks["total"][0]) - smooth_window,
+        max(peaks["total"][0]) + smooth_window,
+    )
     # Get set of all samples
-    samples = sorted(list(set([k for s in peak_assignments['total'] for k in peak_assignments['total'][s].keys()])))
-    peaks_by_index = dict(enumerate(peaks['total'][0]))
+    samples = sorted(
+        list(
+            set(
+                [
+                    k
+                    for s in peak_assignments["total"]
+                    for k in peak_assignments["total"][s].keys()
+                ]
+            )
+        )
+    )
+    peaks_by_index = dict(enumerate(peaks["total"][0]))
 
     if total:
-        counts_by_index = {i: sum(peak_assignments['total'][i].values()) for i in peak_assignments['total']}
+        counts_by_index = {
+            i: sum(peak_assignments["total"][i].values())
+            for i in peak_assignments["total"]
+        }
         fig, ax = plt.subplots(1, 1, figsize=(8, 1))
         ax.vlines(
             [peaks_by_index[i] for i in peaks_by_index],
@@ -325,8 +354,7 @@ def plot_gene_terminal_peaks(
             else:
                 myax = ax[idx]
             counts_by_index = {
-                i: peak_assignments['total'][i].get(s, 0)
-                for i in peaks_by_index
+                i: peak_assignments["total"][i].get(s, 0) for i in peaks_by_index
             }
             myax.vlines(
                 [peaks_by_index[i] for i in peaks_by_index],
@@ -338,9 +366,16 @@ def plot_gene_terminal_peaks(
 
 
 def test_alternative_pas(
-    transcriptome, gene, groups:dict, smooth_window:int=31, prominence:int=2,
-    min_total: int = 100, min_alt_fraction: float = 0.01,  # different from Isotools default
-    min_n: int = 5, min_sa: float = 0.51, test="auto",  # either string with test name or a custom test function
+    transcriptome,
+    gene,
+    groups: dict,
+    smooth_window: int = 31,
+    prominence: int = 2,
+    min_total: int = 100,
+    min_alt_fraction: float = 0.01,  # different from Isotools default
+    min_n: int = 5,
+    min_sa: float = 0.51,
+    test="auto",  # either string with test name or a custom test function
     padj_method="fdr_bh",
     **kwargs,
 ):
@@ -389,10 +424,10 @@ def test_alternative_pas(
                 raise KeyError(f"Test name {test} not found")
     # TODO: report number of reads not assigned to a called peak
     # Count coverage per PAS peak per group/sample
-    group_cov = defaultdict(lambda: defaultdict(int)) # pas, group -> [cov]
-    for i in peak_assignments['total']:
+    group_cov = defaultdict(lambda: defaultdict(int))  # pas, group -> [cov]
+    for i in peak_assignments["total"]:
         for g in groups:
-            group_cov[i][g] = [peak_assignments['total'][i][s] for s in groups[g]]
+            group_cov[i][g] = [peak_assignments["total"][i][s] for s in groups[g]]
     if min_sa < 1:
         min_sa *= sum(len(group) for group in groups_arr[:2])
     # Take pairwise combinations of alternative PAS and test for differential coverage
@@ -405,25 +440,31 @@ def test_alternative_pas(
         alt_cov = sum([e.sum() for e in x])
         if total_cov < min_total:
             continue
-        if alt_cov / total_cov < min_alt_fraction or alt_cov / total_cov > (1 - min_alt_fraction):
+        if alt_cov / total_cov < min_alt_fraction or alt_cov / total_cov > (
+            1 - min_alt_fraction
+        ):
             continue
         # TODO this doesn't look right given the definition of min_sa in Isotools docstring
-        if sum((ni>=min_n).sum() for ni in n[:2]) < min_sa:
+        if sum((ni >= min_n).sum() for ni in n[:2]) < min_sa:
             continue
-        pval, params = test(x[:2],n[:2])
+        pval, params = test(x[:2], n[:2])
         covs = [val for lists in zip(x, n) for pair in zip(*lists) for val in pair]
-        res.append([
-            gene.name,
-            gene.id,
-            gene.chrom,
-            gene.strand,
-            peaks['total'][0][i],
-            peaks['total'][0][j],
-            "PAS",
-            pval,
-            x,
-            n,
-        ] + list(params) + covs )
+        res.append(
+            [
+                gene.name,
+                gene.id,
+                gene.chrom,
+                gene.strand,
+                peaks["total"][0][i],
+                peaks["total"][0][j],
+                "PAS",
+                pval,
+                x,
+                n,
+            ]
+            + list(params)
+            + covs
+        )
     colnames = [
         "gene",
         "gene_id",
@@ -448,4 +489,3 @@ def test_alternative_pas(
         for w in ["_in_cov", "_total_cov"]
     ]
     return pd.DataFrame(res, columns=colnames)
-
