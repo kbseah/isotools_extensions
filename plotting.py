@@ -68,6 +68,8 @@ def plot_gene_terminal_pileup(
         limits
     :returns: Figure and axis objects
     """
+    # TODO: Sort order of the samples in the plot
+    # TODO: Add labels to subplots with sample names
     try:
         pileups = defaultdict(lambda: defaultdict(int))
         for transcript in gene.transcripts:
@@ -309,6 +311,8 @@ def plot_gene_terminal_peaks(
     :param show_peaks: Whether to show called peaks on the plot
     :param prominence: Minimum peak prominence to retain
     """
+    # TODO: Sort order of the samples in the plot
+    # TODO: Add labels to subplots with sample names
     pileup, coords, smoothed, peaks, peak_assignments = get_gene_terminal_peaks(
         gene=gene,
         which=which,
