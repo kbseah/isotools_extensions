@@ -85,10 +85,7 @@ def get_transcript_terminal_peaks(
     :param smooth_window: Window size for smoothing function
     :param prominence: Minimum peak prominence to retain
     """
-    pileup = {}
-    coords = {}
-    smoothed = {}
-    peaks = {}
+    pileup, coords, smoothed, peaks = {}, {}, {}, {}
     if total:
         pileup_sum = {}
         for sample in gene.transcripts[trid][which]:
@@ -137,6 +134,7 @@ def get_gene_terminal_peaks(
     gene,
     which="PAS",
     smooth_window: int = 31,
+    total: bool = False,
     prominence: int = 2,
 ):
     """Get PAS/TSS peaks for an isotools Gene, summing across all transcripts
@@ -147,29 +145,35 @@ def get_gene_terminal_peaks(
     :param gene: isotools.Gene object
     :param which: Either "PAS" or "TSS"
     :param smooth_window: Window size for smoothing function
+    :param total: Sum pileups for all samples if True, else call peaks for each sample separately
     :param prominence: Minimum peak prominence to retain
     """
     assert which in ["PAS", "TSS"], "which must be either 'PAS' or 'TSS' only"
-    pileup_sum = {}
-    for trid, transcript in enumerate(gene.transcripts):
-        for sample in transcript[which]:
-            for pos, cov in transcript[which][sample].items():
-                pileup_sum[pos] = pileup_sum.get(pos, 0) + cov
-    pileup, coords, smoothed = pileup_to_smoothed(pileup_sum, smooth_window)
-    # peaks coordinates are indices of coords
-    peaks = find_peaks(smoothed, prominence=(prominence, None))
-    peaks = translate_peaks_offset(peaks, min(coords))
-    # We cannot use left_base and right_base from find_peaks directly, because
-    # the intervals overlap, see https://github.com/scipy/scipy/issues/19232
-    peak_assignments = defaultdict(lambda: defaultdict(int))  # peak, sample -> count
-    for trid, transcript in enumerate(gene.transcripts):
-        for sample in transcript[which]:
-            for pos in transcript[which][sample]:
-                closest_index, distance = assign_to_closest_peak(pos, peaks[0])
-                if distance <= smooth_window:
-                    peak_assignments[closest_index][sample] += transcript[which][
-                        sample
-                    ][pos]
+    pileup, coords, smoothed, peaks, peak_assignments = {}, {}, {}, {}, {}
+    if total:
+        pileup_sum = {}
+        for trid, transcript in enumerate(gene.transcripts):
+            for sample in transcript[which]:
+                for pos, cov in transcript[which][sample].items():
+                    pileup_sum[pos] = pileup_sum.get(pos, 0) + cov
+        pileup['total'], coords['total'], smoothed['total'] = pileup_to_smoothed(pileup_sum, smooth_window)
+        # peaks coordinates are indices of coords
+        peaks['total'] = find_peaks(smoothed['total'], prominence=(prominence, None))
+        peaks['total'] = translate_peaks_offset(peaks['total'], min(coords['total']))
+        # We cannot use left_base and right_base from find_peaks directly, because
+        # the intervals overlap, see https://github.com/scipy/scipy/issues/19232
+        peak_assignments['total'] = defaultdict(lambda: defaultdict(int))  # peak, sample -> count
+        for trid, transcript in enumerate(gene.transcripts):
+            for sample in transcript[which]:
+                for pos in transcript[which][sample]:
+                    closest_index, distance = assign_to_closest_peak(pos, peaks['total'][0])
+                    if distance <= smooth_window:
+                        peak_assignments['total'][closest_index][sample] += transcript[which][
+                            sample
+                        ][pos]
+    else:
+        pass
+        # TODO
     return pileup, coords, smoothed, peaks, peak_assignments
 
 
@@ -219,3 +223,67 @@ def plot_transcript_terminal_peaks(
                 color="red",
             )
     return (fig, ax, pileup, smoothed, peaks)
+
+
+def plot_gene_terminal_peaks(
+    gene,
+    which="PAS",
+    total=True,
+    smooth_window:int=31,
+    show_peaks:bool=True,
+    prominence:int=2,
+):
+    """Plot PAS/TSS called peaks for an isotools gene
+
+    Unlike default isotools behavior, this calls all peaks without choosing a
+    unified consensus for each transcript.
+
+    :param gene: isotools.Gene object
+    :param which: Either "PAS" or "TSS"
+    :param total: Sum pileups for all samples if True, else plot samples separately
+    :param smooth_window: Window size for smoothing function
+    :param show_peaks: Whether to show called peaks on the plot
+    :param prominence: Minimum peak prominence to retain
+    """
+    pileup, coords, smoothed, peaks, peak_assignments = get_gene_terminal_peaks(
+        gene=gene,
+        which=which,
+        total=True,
+        smooth_window=smooth_window,
+        prominence=prominence,
+    )
+    # Set xlim around peaks only
+    xlim = (min(peaks['total'][0]) - smooth_window, max(peaks['total'][0]) + smooth_window)
+    # Get set of all samples
+    samples = sorted(list(set([k for s in peak_assignments['total'] for k in peak_assignments['total'][s].keys()])))
+    peaks_by_index = dict(enumerate(peaks['total'][0]))
+
+    if total:
+        counts_by_index = {i: sum(peak_assignments['total'][i].values()) for i in peak_assignments['total']}
+        fig, ax = plt.subplots(1, 1, figsize=(8, 1))
+        ax.vlines(
+            [peaks_by_index[i] for i in peaks_by_index],
+            0,
+            [counts_by_index.get(i, 0) for i in peaks_by_index],
+        )
+
+    else:
+        fig, ax = plt.subplots(
+            len(samples), 1, figsize=(8, 1 * len(samples)), sharex=True
+        )
+        for idx, s in enumerate(samples):
+            if len(samples) == 1:
+                myax = ax
+            else:
+                myax = ax[idx]
+            counts_by_index = {
+                i: peak_assignments['total'][i].get(s, 0)
+                for i in peaks_by_index
+            }
+            myax.vlines(
+                [peaks_by_index[i] for i in peaks_by_index],
+                0,
+                [counts_by_index.get(i, 0) for i in peaks_by_index],
+            )
+        myax.set_xlim(xlim)
+    return fig, ax, pileup, smoothed, peaks, peak_assignments
