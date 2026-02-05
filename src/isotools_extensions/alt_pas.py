@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 
-import matplotlib.pyplot as plt
-import isotools._utils
-import numpy as np
-import pandas as pd
-from scipy.signal import find_peaks
 from collections import defaultdict
 from itertools import combinations
-from isotools._transcriptome_stats import _check_groups, TESTS
+
+import isotools._utils
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from isotools._transcriptome_stats import TESTS, _check_groups
+from scipy.signal import find_peaks
 
 
 def plot_transcript_terminal_pileup(
@@ -210,9 +211,8 @@ def get_gene_terminal_peaks(
     # Check that trids are valid
     if len(trids) == 0:
         trids = list(range(len(gene.transcripts)))
-    else:
-        if min(trids) < 0 or max(trids) >= len(gene.transcripts):
-            raise ValueError(f"At least one transcript ID is out of range")
+    elif min(trids) < 0 or max(trids) >= len(gene.transcripts):
+        raise ValueError("At least one transcript ID is out of range")
     pileup, coords, smoothed, peaks, peak_assignments = {}, {}, {}, {}, {}
     pileup_sum = {}
     for trid, transcript in enumerate(gene.transcripts):

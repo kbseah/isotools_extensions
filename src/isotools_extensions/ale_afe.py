@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
-import pandas as pd
-import numpy as np
-
-from itertools import combinations
 from collections import defaultdict
-from isotools._transcriptome_stats import _check_groups, TESTS
+from itertools import combinations
+
+import numpy as np
+import pandas as pd
+from isotools._transcriptome_stats import TESTS, _check_groups
 
 
 def get_exon_nodes(segment_graph, transcript, start_node=None, end_node=None):
@@ -38,13 +38,12 @@ def get_exon_nodes(segment_graph, transcript, start_node=None, end_node=None):
             if node == end:
                 out.append((exon_start, node))
                 return out
+        elif node == end:
+            # Monoexonic
+            out.append((exon_start, node))
+            return out
         else:
-            if node == end:
-                # Monoexonic
-                out.append((exon_start, node))
-                return out
-            else:
-                raise Exception
+            raise Exception
 
 
 def get_exon_coords(segment_graph, transcript: int):
@@ -235,7 +234,7 @@ def find_ale_afe(gene, which: str = "ALE"):
                 e2 = gene.segment_graph[prim_nodes[-1][1]].end
                 s3 = gene.segment_graph[alt_nodes[0][0]].start
                 e3 = gene.segment_graph[alt_nodes[-1][1]].end
-                coord = f"{str(e1)}-{str(s2)}:{str(e2)}:{str(e1)}-{str(s3)}:{str(e3)}"
+                coord = f"{e1!s}-{s2!s}:{e2!s}:{e1!s}-{s3!s}:{e3!s}"
                 yield (
                     prim_set,
                     alt_set,
@@ -258,7 +257,7 @@ def find_ale_afe(gene, which: str = "ALE"):
                 e1 = gene.segment_graph[prim_nodes[-1][1]].end
                 s2 = gene.segment_graph[alt_nodes[0][0]].start
                 e2 = gene.segment_graph[alt_nodes[-1][1]].end
-                coord = f"{str(s1)}:{str(e1)}-{str(s3)}:{str(s2)}:{str(e2)}-{str(s3)}"
+                coord = f"{s1!s}:{e1!s}-{s3!s}:{s2!s}:{e2!s}-{s3!s}"
                 yield (
                     prim_set,
                     alt_set,
