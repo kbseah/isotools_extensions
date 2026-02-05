@@ -163,7 +163,7 @@ def get_ale_afe(segment_graph, which="ALE"):
     return out
 
 
-def find_afe_ale(gene, which: str = "ALE"):
+def find_ale_afe(gene, which: str = "ALE"):
     """Generator for ALE/AFE events similar to find_splice_bubbles
 
     ALE and AFE can't be uniquely defined with two nodes, so we also return the
@@ -278,7 +278,7 @@ def test_ale_afe(
         min_sa *= sum(len(group) for group in groups[:2])
     res = []
     for which in ["ALE", "AFE"]:
-        for setA, setB, start, end, splice_type, nodesA, nodesB, coord in find_afe_ale(
+        for setA, setB, start, end, splice_type, nodesA, nodesB, coord in find_ale_afe(
             gene, which
         ):
             junction_cov = gene.coverage[:, setB].sum(1)
