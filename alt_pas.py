@@ -189,6 +189,7 @@ def translate_peaks_offset(peaks, offset):
 
 def get_gene_terminal_peaks(
     gene,
+    trids:list=[],
     which="PAS",
     smooth_window: int = 31,
     prominence: int = 2,
@@ -199,41 +200,52 @@ def get_gene_terminal_peaks(
     unified consensus for each transcript.
 
     :param gene: isotools.Gene object
+    :param trids: List of transcript IDs to include (as ints); if empty,
+        include all transcripts
     :param which: Either "PAS" or "TSS"
     :param smooth_window: Window size for smoothing function
     :param prominence: Minimum peak prominence to retain
     """
     assert which in ["PAS", "TSS"], "which must be either 'PAS' or 'TSS' only"
+    # Check that trids are valid
+    if len(trids) == 0:
+        trids = list(range(len(gene.transcripts)))
+    else:
+        if min(trids) < 0 or max(trids) >= len(gene.transcripts):
+            raise ValueError(f"At least one transcript ID is out of range")
     pileup, coords, smoothed, peaks, peak_assignments = {}, {}, {}, {}, {}
     pileup_sum = {}
     for trid, transcript in enumerate(gene.transcripts):
-        for sample in transcript[which]:
-            for pos, cov in transcript[which][sample].items():
-                pileup_sum[pos] = pileup_sum.get(pos, 0) + cov
+        if trid in trids:
+            for sample in transcript[which]:
+                for pos, cov in transcript[which][sample].items():
+                    pileup_sum[pos] = pileup_sum.get(pos, 0) + cov
     pileup["total"], coords["total"], smoothed["total"] = pileup_to_smoothed(
         pileup_sum, smooth_window
     )
     # peaks coordinates are indices of coords
     peaks["total"] = find_peaks(smoothed["total"], prominence=(prominence, None))
     peaks["total"] = translate_peaks_offset(peaks["total"], min(coords["total"]))
-    # If no peaks found, return black
+    # If no peaks found, return None
     if len(peaks["total"][0]) == 0:
         return pileup, coords, smoothed, None, None
     # We cannot use left_base and right_base from find_peaks directly, because
     # the intervals overlap, see https://github.com/scipy/scipy/issues/19232
+    # Assign counts to closest peaks
     peak_assignments["total"] = defaultdict(
         lambda: defaultdict(int)
     )  # peak, sample -> count
     for trid, transcript in enumerate(gene.transcripts):
-        for sample in transcript[which]:
-            for pos in transcript[which][sample]:
-                closest_index, distance = assign_to_closest_peak(
-                    pos, peaks["total"][0]
-                )
-                if distance <= smooth_window:
-                    peak_assignments["total"][closest_index][sample] += transcript[
-                        which
-                    ][sample][pos]
+        if trid in trids:
+            for sample in transcript[which]:
+                for pos in transcript[which][sample]:
+                    closest_index, distance = assign_to_closest_peak(
+                        pos, peaks["total"][0]
+                    )
+                    if distance <= smooth_window:
+                        peak_assignments["total"][closest_index][sample] += transcript[
+                            which
+                        ][sample][pos]
     return pileup, coords, smoothed, peaks, peak_assignments
 
 
@@ -287,6 +299,7 @@ def plot_transcript_terminal_peaks(
 
 def plot_gene_terminal_peaks(
     gene,
+    trids:list=[],
     which="PAS",
     total=True,
     smooth_window: int = 31,
@@ -299,6 +312,8 @@ def plot_gene_terminal_peaks(
     unified consensus for each transcript.
 
     :param gene: isotools.Gene object
+    :param trids: List of transcript IDs to include (as ints); if empty,
+        include all transcripts
     :param which: Either "PAS" or "TSS"
     :param total: Sum pileups for all samples if True, else plot samples separately
     :param smooth_window: Window size for smoothing function
@@ -309,8 +324,8 @@ def plot_gene_terminal_peaks(
     # TODO: Add labels to subplots with sample names
     pileup, coords, smoothed, peaks, peak_assignments = get_gene_terminal_peaks(
         gene=gene,
+        trids=trids,
         which=which,
-        total=True,
         smooth_window=smooth_window,
         prominence=prominence,
     )
@@ -410,7 +425,6 @@ def test_alternative_pas(
     pileup, coords, smoothed, peaks, peak_assignments = get_gene_terminal_peaks(
         gene=gene,
         which="PAS",
-        total=True,
         smooth_window=smooth_window,
         prominence=prominence,
     )
