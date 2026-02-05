@@ -190,7 +190,7 @@ def translate_peaks_offset(peaks, offset):
 
 def get_gene_terminal_peaks(
     gene,
-    trids: list = [],
+    trids: list = None,
     which="PAS",
     smooth_window: int = 31,
     prominence: int = 2,
@@ -201,15 +201,15 @@ def get_gene_terminal_peaks(
     unified consensus for each transcript.
 
     :param gene: isotools.Gene object
-    :param trids: List of transcript IDs to include (as ints); if empty,
-        include all transcripts
+    :param trids: List of transcript IDs to include (as ints); if None, include
+        all transcripts
     :param which: Either "PAS" or "TSS"
     :param smooth_window: Window size for smoothing function
     :param prominence: Minimum peak prominence to retain
     """
     assert which in ["PAS", "TSS"], "which must be either 'PAS' or 'TSS' only"
     # Check that trids are valid
-    if len(trids) == 0:
+    if trids is None:
         trids = list(range(len(gene.transcripts)))
     elif min(trids) < 0 or max(trids) >= len(gene.transcripts):
         raise ValueError("At least one transcript ID is out of range")
@@ -282,10 +282,7 @@ def plot_transcript_terminal_peaks(
         len(smoothed), 1, figsize=(8, 2 * len(smoothed)), sharex=True
     )
     for idx, s in enumerate(smoothed):
-        if len(smoothed) == 1:
-            myax = ax
-        else:
-            myax = ax[idx]
+        myax = ax if len(smoothed) == 1 else ax[idx]
         myax.plot(coords[s], smoothed[s])
         if show_peaks:
             myax.vlines(
@@ -299,7 +296,7 @@ def plot_transcript_terminal_peaks(
 
 def plot_gene_terminal_peaks(
     gene,
-    trids: list = [],
+    trids: list = None,
     which="PAS",
     total=True,
     smooth_window: int = 31,
@@ -312,8 +309,8 @@ def plot_gene_terminal_peaks(
     unified consensus for each transcript.
 
     :param gene: isotools.Gene object
-    :param trids: List of transcript IDs to include (as ints); if empty,
-        include all transcripts
+    :param trids: List of transcript IDs to include (as ints); if None, include
+        all transcripts
     :param which: Either "PAS" or "TSS"
     :param total: Sum pileups for all samples if True, else plot samples separately
     :param smooth_window: Window size for smoothing function
@@ -339,15 +336,11 @@ def plot_gene_terminal_peaks(
     )
     # Get set of all samples
     samples = sorted(
-        list(
-            set(
-                [
-                    k
-                    for s in peak_assignments["total"]
-                    for k in peak_assignments["total"][s].keys()
-                ]
-            )
-        )
+        {
+            k
+            for s in peak_assignments["total"]
+            for k in peak_assignments["total"][s]
+        }
     )
     peaks_by_index = dict(enumerate(peaks["total"][0]))
 
@@ -368,10 +361,7 @@ def plot_gene_terminal_peaks(
             len(samples), 1, figsize=(8, 1 * len(samples)), sharex=True
         )
         for idx, s in enumerate(samples):
-            if len(samples) == 1:
-                myax = ax
-            else:
-                myax = ax[idx]
+            myax = ax if len(samples) == 1 else ax[idx]
             counts_by_index = {
                 i: peak_assignments["total"][i].get(s, 0) for i in peaks_by_index
             }
@@ -392,10 +382,7 @@ def get_gene_last_exons(gene):
     """
     last_exons = {}
     for trid, transcript in enumerate(gene.transcripts):
-        if gene.strand == "+":
-            last_exon_start = transcript["exons"][-1][0]
-        else:
-            last_exon_start = transcript["exons"][0][1]
+        last_exon_start = transcript["exons"][-1][0] if gene.strand == "+" else transcript["exons"][0][1]
         last_exons[last_exon_start] = last_exons.get(last_exon_start, []) + [trid]
     return last_exons
 
@@ -412,7 +399,6 @@ def test_alternative_pas(
     min_sa: float = 0.51,
     test="auto",  # either string with test name or a custom test function
     padj_method="fdr_bh",
-    **kwargs,
 ):
     """Identify and test alternative PAS within an isotools Gene
 
@@ -444,17 +430,13 @@ def test_alternative_pas(
     :param min_sa:
     :param test: Either "auto" to use isotools default test, or a custom test function
     :param padj_method: Method for multiple testing correction
-    :param **kwargs: Additional parameters passed to the test function
     :returns: DataFrame with test results for alternative PAS events
     """
     groupnames, groups_arr, grp_idx = _check_groups(transcriptome, groups)
     # Choose appropriate test
     if isinstance(test, str):
         if test == "auto":
-            if min(len(group) for group in groups_arr[:2]) > 1:
-                test = TESTS["betabinom_lr"]
-            else:
-                test = TESTS["proportions"]
+            test = TESTS["betabinom_lr"] if min(len(group) for group in groups_arr[:2]) > 1 else TESTS["proportions"]
         else:
             try:
                 test = TESTS[test]
@@ -486,7 +468,6 @@ def test_alternative_pas(
         # Take pairwise combinations of alternative PAS and test for differential coverage
         for i, j in combinations(group_cov, 2):
             x = [np.array(group_cov[i][g]) for g in groups]
-            y = [np.array(group_cov[j][g]) for g in groups]
             n = [np.array(group_cov[i][g]) + np.array(group_cov[j][g]) for g in groups]
             total_cov = sum([e.sum() for e in n])
             alt_cov = sum([e.sum() for e in x])
@@ -496,7 +477,7 @@ def test_alternative_pas(
                 1 - min_alt_fraction
             ):
                 continue
-            # TODO this doesn't look right given the definition of min_sa in Isotools docstring
+            # TODO: this doesn't look right given the definition of min_sa in Isotools docstring
             if sum((ni >= min_n).sum() for ni in n[:2]) < min_sa:
                 continue
             pval, params = test(x[:2], n[:2])

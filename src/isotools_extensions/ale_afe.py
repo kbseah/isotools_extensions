@@ -18,14 +18,8 @@ def get_exon_nodes(segment_graph, transcript, start_node=None, end_node=None):
     :param end_node: End with this node. If None, then end at rightmost node
         (based on coordinate, ignores gene strand)
     """
-    if start_node is None:
-        node = segment_graph._tss[transcript]
-    else:
-        node = start_node
-    if end_node is None:
-        end = segment_graph._pas[transcript]
-    else:
-        end = end_node
+    node = segment_graph._tss[transcript] if start_node is None else start_node
+    end = segment_graph._pas[transcript] if end_node is None else end_node
     out = []
     exon_start = node
     while node <= end:
@@ -156,7 +150,7 @@ def get_ale_afe(segment_graph, which="ALE"):
         which == "AFE" and segment_graph.strand == "+"
     ):
         suc_nodes = []
-        # TODO use the isotools annotations instead, because some instances of
+        # TODO: use the isotools annotations instead, because some instances of
         # novel transcripts get called fragments too
         fragments = segment_graph.find_fragments()
         # Find splice junctions immediately after first exons
@@ -280,7 +274,6 @@ def test_ale_afe(
     min_sa: float = 0.51,
     test="auto",  # either string with test name or a custom test function
     padj_method="fdr_bh",
-    **kwargs,
 ):
     """Test for alternative last/first exon (ALE/AFE) events
 
@@ -317,7 +310,6 @@ def test_ale_afe(
         group, otherwise uses proportions test.
     :param padj_method: Method for multiple testing correction (not implemented
         yet)
-    :param kwargs: Additional arguments passed to the test function
     :returns pd.DataFrame: DataFrame with test results for all identified
         ALE/AFE events. Columns are identical with
         isotools._transcriptome_stats.altsplice_test output except for "coord",
@@ -329,16 +321,12 @@ def test_ale_afe(
     sidx = np.array(grp_idx[0] + grp_idx[1])
     if isinstance(test, str):
         if test == "auto":
-            if min(len(group) for group in groups[:2]) > 1:
-                test = TESTS["betabinom_lr"]
-            else:
-                test = TESTS["proportions"]
+            test = TESTS["betabinom_lr"] if min(len(group) for group in groups[:2]) > 1 else TESTS["proportions"]
         else:
             try:
                 test = TESTS[test]
             except KeyError:
                 raise KeyError(f"Test name {test} not found")
-    sg = gene.segment_graph
     if min_sa < 1:
         min_sa *= sum(len(group) for group in groups[:2])
     res = []
@@ -360,7 +348,7 @@ def test_ale_afe(
             pval, params = test(x[:2], n[:2])
             if np.isnan(pval):
                 continue
-            # TODO nmdA, nmdB
+            # TODO: nmdA, nmdB
             covs = [val for lists in zip(x, n) for pair in zip(*lists) for val in pair]
             res.append(
                 [
