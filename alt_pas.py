@@ -191,7 +191,6 @@ def get_gene_terminal_peaks(
     gene,
     which="PAS",
     smooth_window: int = 31,
-    total: bool = True,
     prominence: int = 2,
 ):
     """Get PAS/TSS peaks for an isotools Gene, summing across all transcripts
@@ -202,44 +201,39 @@ def get_gene_terminal_peaks(
     :param gene: isotools.Gene object
     :param which: Either "PAS" or "TSS"
     :param smooth_window: Window size for smoothing function
-    :param total: Sum pileups for all samples if True, else call peaks for each sample separately (FALSE NOT IMPLEMENTED)
     :param prominence: Minimum peak prominence to retain
     """
     assert which in ["PAS", "TSS"], "which must be either 'PAS' or 'TSS' only"
     pileup, coords, smoothed, peaks, peak_assignments = {}, {}, {}, {}, {}
-    if total:
-        pileup_sum = {}
-        for trid, transcript in enumerate(gene.transcripts):
-            for sample in transcript[which]:
-                for pos, cov in transcript[which][sample].items():
-                    pileup_sum[pos] = pileup_sum.get(pos, 0) + cov
-        pileup["total"], coords["total"], smoothed["total"] = pileup_to_smoothed(
-            pileup_sum, smooth_window
-        )
-        # peaks coordinates are indices of coords
-        peaks["total"] = find_peaks(smoothed["total"], prominence=(prominence, None))
-        peaks["total"] = translate_peaks_offset(peaks["total"], min(coords["total"]))
-        # If no peaks found, return black
-        if len(peaks["total"][0]) == 0:
-            return pileup, coords, smoothed, None, None
-        # We cannot use left_base and right_base from find_peaks directly, because
-        # the intervals overlap, see https://github.com/scipy/scipy/issues/19232
-        peak_assignments["total"] = defaultdict(
-            lambda: defaultdict(int)
-        )  # peak, sample -> count
-        for trid, transcript in enumerate(gene.transcripts):
-            for sample in transcript[which]:
-                for pos in transcript[which][sample]:
-                    closest_index, distance = assign_to_closest_peak(
-                        pos, peaks["total"][0]
-                    )
-                    if distance <= smooth_window:
-                        peak_assignments["total"][closest_index][sample] += transcript[
-                            which
-                        ][sample][pos]
-    else:
-        # TODO
-        raise NotImplementedError("Per-sample peak calling not yet implemented")
+    pileup_sum = {}
+    for trid, transcript in enumerate(gene.transcripts):
+        for sample in transcript[which]:
+            for pos, cov in transcript[which][sample].items():
+                pileup_sum[pos] = pileup_sum.get(pos, 0) + cov
+    pileup["total"], coords["total"], smoothed["total"] = pileup_to_smoothed(
+        pileup_sum, smooth_window
+    )
+    # peaks coordinates are indices of coords
+    peaks["total"] = find_peaks(smoothed["total"], prominence=(prominence, None))
+    peaks["total"] = translate_peaks_offset(peaks["total"], min(coords["total"]))
+    # If no peaks found, return black
+    if len(peaks["total"][0]) == 0:
+        return pileup, coords, smoothed, None, None
+    # We cannot use left_base and right_base from find_peaks directly, because
+    # the intervals overlap, see https://github.com/scipy/scipy/issues/19232
+    peak_assignments["total"] = defaultdict(
+        lambda: defaultdict(int)
+    )  # peak, sample -> count
+    for trid, transcript in enumerate(gene.transcripts):
+        for sample in transcript[which]:
+            for pos in transcript[which][sample]:
+                closest_index, distance = assign_to_closest_peak(
+                    pos, peaks["total"][0]
+                )
+                if distance <= smooth_window:
+                    peak_assignments["total"][closest_index][sample] += transcript[
+                        which
+                    ][sample][pos]
     return pileup, coords, smoothed, peaks, peak_assignments
 
 
