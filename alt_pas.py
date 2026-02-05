@@ -384,7 +384,22 @@ def plot_gene_terminal_peaks(
     return fig, ax, pileup, smoothed, peaks, peak_assignments
 
 
-# TODO: Group transcripts by common last exon and call alternative PAS events only for transcripts that share the same last exon, to avoid conflating ALEs and APAs
+def get_gene_last_exons(gene):
+    """Get last exons for all transcripts of a gene
+
+    :param gene: isotools.Gene object
+    :returns: Dict mapping transcript IDs to start positions of last exons
+    """
+    last_exons = {}
+    for trid, transcript in enumerate(gene.transcripts):
+        if gene.strand == "+":
+            last_exon_start = transcript["exons"][-1][0]
+        else:
+            last_exon_start = transcript["exons"][0][1]
+        last_exons[last_exon_start] = last_exons.get(last_exon_start, []) + [trid]
+    return last_exons
+
+
 def test_alternative_pas(
     transcriptome,
     gene,
@@ -404,9 +419,18 @@ def test_alternative_pas(
     Isotools chooses a unified PAS per transcript by default. However,
     transcripts are defined by their internal splice sites, so a single
     transcript may have multiple PAS, not captured by the unified PAS. This
-    function calls all PAS peaks for all transcripts of a given gene, then
-    tests for differential usage of these PAS between groups, without relying
-    on a unified consensus for each transcript.
+    function first groups transcripts by their last exon, then calls all PAS
+    peaks for all transcripts with that last exon, and tests for differential
+    APA between groups, without relying on a unified consensus for each
+    transcript.
+
+    Output columns are same as those from isotools._transcriptome_stats.altsplice_test, except for:
+     * "last_exon_start" - start position of the last exon shared by the transcripts tested
+     * "trids" - list of transcript IDs tested
+     * "start" - position of the first PAS peak tested
+     * "end" - position of the second PAS peak tested
+
+    Column "splice_type" is always "PAS" in this function.
 
     :param transcriptome: isotools.Transcriptome object
     :param gene: isotools.Gene object from the transcriptome
@@ -421,16 +445,8 @@ def test_alternative_pas(
     :param test: Either "auto" to use isotools default test, or a custom test function
     :param padj_method: Method for multiple testing correction
     :param **kwargs: Additional parameters passed to the test function
+    :returns: DataFrame with test results for alternative PAS events
     """
-    pileup, coords, smoothed, peaks, peak_assignments = get_gene_terminal_peaks(
-        gene=gene,
-        which="PAS",
-        smooth_window=smooth_window,
-        prominence=prominence,
-    )
-    # No peaks found, likely because coverage is too low
-    if peaks is None:
-        return
     groupnames, groups_arr, grp_idx = _check_groups(transcriptome, groups)
     # Choose appropriate test
     if isinstance(test, str):
@@ -444,54 +460,73 @@ def test_alternative_pas(
                 test = TESTS[test]
             except KeyError:
                 raise KeyError(f"Test name {test} not found")
-    # TODO: report number of reads not assigned to a called peak
-    # Count coverage per PAS peak per group/sample
-    group_cov = defaultdict(lambda: defaultdict(int))  # pas, group -> [cov]
-    for i in peak_assignments["total"]:
-        for g in groups:
-            group_cov[i][g] = [peak_assignments["total"][i][s] for s in groups[g]]
     if min_sa < 1:
         min_sa *= sum(len(group) for group in groups_arr[:2])
-    # Take pairwise combinations of alternative PAS and test for differential coverage
+    # Store results here
     res = []
-    for i, j in combinations(group_cov, 2):
-        x = [np.array(group_cov[i][g]) for g in groups]
-        y = [np.array(group_cov[j][g]) for g in groups]
-        n = [np.array(group_cov[i][g]) + np.array(group_cov[j][g]) for g in groups]
-        total_cov = sum([e.sum() for e in n])
-        alt_cov = sum([e.sum() for e in x])
-        if total_cov < min_total:
-            continue
-        if alt_cov / total_cov < min_alt_fraction or alt_cov / total_cov > (
-            1 - min_alt_fraction
-        ):
-            continue
-        # TODO this doesn't look right given the definition of min_sa in Isotools docstring
-        if sum((ni >= min_n).sum() for ni in n[:2]) < min_sa:
-            continue
-        pval, params = test(x[:2], n[:2])
-        covs = [val for lists in zip(x, n) for pair in zip(*lists) for val in pair]
-        res.append(
-            [
-                gene.name,
-                gene.id,
-                gene.chrom,
-                gene.strand,
-                peaks["total"][0][i],
-                peaks["total"][0][j],
-                "PAS",
-                pval,
-                x,
-                n,
-            ]
-            + list(params)
-            + covs
+    # For each last exon, get PAS peaks and test for differential usage
+    trids_by_last_exon = get_gene_last_exons(gene)
+    for last_exon in trids_by_last_exon:
+        pileup, coords, smoothed, peaks, peak_assignments = get_gene_terminal_peaks(
+            gene=gene,
+            trids=trids_by_last_exon[last_exon],
+            which="PAS",
+            smooth_window=smooth_window,
+            prominence=prominence,
         )
+        # No peaks found, likely because coverage is too low
+        if peaks is None:
+            continue
+        # TODO: report number of reads not assigned to a called peak
+        # Count coverage per PAS peak per group/sample
+        group_cov = defaultdict(lambda: defaultdict(int))  # pas, group -> [cov]
+        for i in peak_assignments["total"]:
+            for g in groups:
+                group_cov[i][g] = [peak_assignments["total"][i][s] for s in groups[g]]
+        # Take pairwise combinations of alternative PAS and test for differential coverage
+        for i, j in combinations(group_cov, 2):
+            x = [np.array(group_cov[i][g]) for g in groups]
+            y = [np.array(group_cov[j][g]) for g in groups]
+            n = [np.array(group_cov[i][g]) + np.array(group_cov[j][g]) for g in groups]
+            total_cov = sum([e.sum() for e in n])
+            alt_cov = sum([e.sum() for e in x])
+            if total_cov < min_total:
+                continue
+            if alt_cov / total_cov < min_alt_fraction or alt_cov / total_cov > (
+                1 - min_alt_fraction
+            ):
+                continue
+            # TODO this doesn't look right given the definition of min_sa in Isotools docstring
+            if sum((ni >= min_n).sum() for ni in n[:2]) < min_sa:
+                continue
+            pval, params = test(x[:2], n[:2])
+            covs = [val for lists in zip(x, n) for pair in zip(*lists) for val in pair]
+            res.append(
+                [
+                    gene.name,
+                    gene.id,
+                    gene.chrom,
+                    gene.strand,
+                    last_exon,
+                    trids_by_last_exon[last_exon],
+                    peaks["total"][0][i],
+                    peaks["total"][0][j],
+                    "PAS",
+                    pval,
+                    x,
+                    n,
+                ]
+                + list(params)
+                + covs
+            )
+    # Column names
     colnames = [
         "gene",
         "gene_id",
         "chrom",
         "strand",
+        "last_exon_start",
+        "trids",
         "start",
         "end",
         "splice_type",
