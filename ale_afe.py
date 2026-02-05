@@ -13,8 +13,10 @@ def get_exon_nodes(segment_graph, transcript, start_node=None, end_node=None):
 
     :param segment_graph: isotools.SegmentGraph object
     :param transcript: Transcript index
-    :param start_node: Start from this node. If None, then start from leftmost node (based on coordinate, ignores gene strand)
-    :param end_node: End with this node. If None, then end at rightmost node (based on coordinate, ignores gene strand)
+    :param start_node: Start from this node. If None, then start from leftmost
+        node (based on coordinate, ignores gene strand)
+    :param end_node: End with this node. If None, then end at rightmost node
+        (based on coordinate, ignores gene strand)
     """
     if start_node is None:
         node = segment_graph._tss[transcript]
@@ -48,7 +50,8 @@ def get_exon_nodes(segment_graph, transcript, start_node=None, end_node=None):
 def get_exon_coords(segment_graph, transcript: int):
     """Get exon coordinates for a given transcript from its segment graph
 
-    Should give identical output to isotool's original SegmentGraph._get_all_exons method.
+    Should give identical output to isotool's original
+    SegmentGraph._get_all_exons method.
 
     :param segment_graph: isotools.SegmentGraph object
     :param transcript: Transcript index
@@ -104,10 +107,27 @@ def get_ale_mono(segment_graph):
 
 
 def get_ale_afe(segment_graph, which="ALE"):
-    """Find alternative last or first exon (ALE/AFE) events in the segment graph
+    """Report last or first exon (ALE/AFE) events in the segment graph
+
+    Report potential first or last exon events from a gene's segment graph.
+    Most tools for ALE/AFE consider only cases where there is only a single
+    alternative exon. However there may be multiple alternative exons that
+    co-vary. This function first looks for splice junctions immediately before
+    (ALE) or after (AFE) all single terminal exons in the segment graph, then
+    collects all the exon variants downstream (ALE) or upstream (AFE) of those
+    splice junctions. This way, multiple-exon alternatives at transcript ends
+    are also captured.
+
+    This function is used within find_ale_afe which implements additional
+    filtering steps and reports pairwise alternative AFE/ALE events.
 
     :param segment_graph: isotools.SegmentGraph object
     :param which: Either "ALE" or "AFE"
+    :returns dict: Nested dictionary where keys of the outer dictionary are the
+    splice junction nodes before (ALE) or after (AFE) the alternative exons,
+    and keys of the inner dictionary are tuples of exon nodes representing the
+    alternative last/first exons. Values of the inner dictionary are lists of
+    transcript indices supporting each alternative.
     """
     out = defaultdict(lambda: defaultdict(list))
     if (which == "ALE" and segment_graph.strand == "+") or (
@@ -166,20 +186,36 @@ def get_ale_afe(segment_graph, which="ALE"):
 def find_ale_afe(gene, which: str = "ALE"):
     """Generator for ALE/AFE events similar to find_splice_bubbles
 
-    ALE and AFE can't be uniquely defined with two nodes, so we also return the
-    full list of primary and alternate nodes. For compatibility the first five
-    elements of the returned tuple correspond to the fields returned by
+    To identify potential ALE and AFE events in a gene, we first identify all
+    splice junctions immediately upstream of a terminal exon. Then, for each of
+    these splice junctions, we collect all alternative terminal exons spliced
+    at that junction. Finally, we yield all pairwise combinations of these
+    alternative terminal exons as potential ALE/AFE events. This includes cases
+    with multiple exons downstream of that splice junction. Because of
+    transcript fragmentation, some of these events may not be true ALE/AFE
+    events. We exclude pairs where any exons are shared between the two
+    alternatives, as these represent other types of alternative splicing and
+    should be captured by the standard find_splice_bubbles function.
+
+    ALE and AFE cannot be uniquely defined with two nodes, so we also return
+    the full list of primary and alternate nodes. This addresses a limitation
+    of the altsplice_test function in IsoTools, which defines each AS event
+    with two coordinates only. For compatibility the first five elements of the
+    returned tuple correspond to the fields returned by
     isotools.SegmentGraph.find_splice_bubbles.
 
     Primary vs. alternate forms are determined by sort order of the node indices.
 
     :param gene: isotools.Gene object
     :param which: Either "ALE" or "AFE"
-    :returns tuple: Tuple with elements: primary isoform transcripts (list of
-    transcript indices), alternate isoform transcripts (list), start coordinate
-    (int), end coordinate (int), event type, either "AFE" or "ALE" (str),
-    primary isoform nodes (tuple), alternate isoform nodes (tuple).
-    :rtype: list
+    :returns tuple: Tuple with the following elements:
+        * primary isoform transcripts (list of transcript indices)
+        * alternate isoform transcripts (list)
+        * start coordinate (int)
+        * end coordinate (int)
+        * event type, either "AFE" or "ALE" (str)
+        * primary isoform nodes (tuple)
+        * alternate isoform nodes (tuple)
     """
     events = get_ale_afe(gene.segment_graph, which=which)
     for pre in events:
@@ -249,15 +285,45 @@ def test_ale_afe(
 ):
     """Test for alternative last/first exon (ALE/AFE) events
 
-    Reimplementation of isotools._transcriptome_stats.altsplice_test for ALE and AFE
-    events, which are not supported in the current IsoTools version (2.0.0). IsoTools
-    takes alternative PAS or TSS events pairwise, but does not account for the splice
-    junction. In most cases these overlap but we want to identify ALE/AFE with
-    relevant splice junctions explicitly, e.g. like in SUPPA2.
+    Reimplementation of isotools._transcriptome_stats.altsplice_test for ALE
+    and AFE events, which are not supported in the current IsoTools version
+    (2.0.0). IsoTools reports alternative PAS or TSS events by taking all
+    pairwise combinations of PAS/TSS sites for a given gene, does not account
+    for splice junctions. ALE events are hence conflated with alternative PAS
+    events that do not involve splicing, likewise for AFE and TSS.
 
-    From visual inspection of long read isoform sequence data, transcripts with
-    multiple-exon alternatives at transcript ends were also observed. These are also
-    returned here.
+    This function identifies ALE and AFE events with relevant splice junctions,
+    then applies the same statistical tests as
+    isotools._transcriptome_stats.altsplice_test. Alternative PAS testing is
+    implemented in isotools_extensions.alt_pas.test_alternative_pas.
+
+    Alternative first/last exon events with multiple exons are supported. See
+    docstring for `find_ale_afe` and `get_ale_afe` for details.
+
+    :param transcriptome: isotools.Transcriptome object
+    :param gene: isotools.Gene object
+    :param groups: Dictionary mapping group names to lists of sample names
+    :param min_total: Minimum total coverage across all samples to consider an
+        event
+    :param min_alt_fraction: Minimum fraction of reads supporting the
+        alternative form (between 0 and 0.5)
+    :param min_n: Minimum coverage in each group to consider an event
+    :param min_sa: Minimum number of samples with sufficient coverage to
+        consider an event. If between 0 and 1, interpreted as fraction of total
+        samples.
+    :param test: Statistical test to use. Either a string with the test name
+        (see isotools._transcriptome_stats.TESTS) or a custom test function
+        with signature test(x: list, n: list) -> (pvalue: float, params: tuple).
+        If "auto", selects betabinom_lr if there are at least two samples per
+        group, otherwise uses proportions test.
+    :param padj_method: Method for multiple testing correction (not implemented
+        yet)
+    :param kwargs: Additional arguments passed to the test function
+    :returns pd.DataFrame: DataFrame with test results for all identified
+        ALE/AFE events. Columns are identical with
+        isotools._transcriptome_stats.altsplice_test output except for "coord",
+        which reports SUPPA2-like coordinates for ALE/AFE events. "splice_type"
+        is either "ALE" or "AFE".
     """
     # There should be only two groups
     groupnames, groups, grp_idx = _check_groups(transcriptome, groups)
@@ -309,8 +375,6 @@ def test_ale_afe(
                     setB,
                     x,
                     n,
-                    nodesA,
-                    nodesB,
                     coord,
                 ]
                 + list(params)
@@ -329,8 +393,6 @@ def test_ale_afe(
         "trB",
         "x",
         "n",
-        "nodesA",
-        "nodesB",
         "coord",
     ]
     colnames += [
