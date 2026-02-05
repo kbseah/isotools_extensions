@@ -189,7 +189,7 @@ def translate_peaks_offset(peaks, offset):
 
 def get_gene_terminal_peaks(
     gene,
-    trids:list=[],
+    trids: list = [],
     which="PAS",
     smooth_window: int = 31,
     prominence: int = 2,
@@ -299,7 +299,7 @@ def plot_transcript_terminal_peaks(
 
 def plot_gene_terminal_peaks(
     gene,
-    trids:list=[],
+    trids: list = [],
     which="PAS",
     total=True,
     smooth_window: int = 31,
@@ -500,6 +500,9 @@ def test_alternative_pas(
             if sum((ni >= min_n).sum() for ni in n[:2]) < min_sa:
                 continue
             pval, params = test(x[:2], n[:2])
+            # pvalue is NaN, comparison is invalid (e.g. all counts zero for both groups in one alternate)
+            if np.isnan(pval):
+                continue
             covs = [val for lists in zip(x, n) for pair in zip(*lists) for val in pair]
             res.append(
                 [

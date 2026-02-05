@@ -359,6 +359,8 @@ def test_ale_afe(
             if sum((ni >= min_n).sum() for ni in n[:2]) < min_sa:
                 continue
             pval, params = test(x[:2], n[:2])
+            if np.isnan(pval):
+                continue
             # TODO nmdA, nmdB
             covs = [val for lists in zip(x, n) for pair in zip(*lists) for val in pair]
             res.append(
