@@ -109,7 +109,7 @@ def get_ale_afe(segment_graph, which="ALE"):
     splice junctions. This way, multiple-exon alternatives at transcript ends
     are also captured.
 
-    This function is used within find_ale_afe which implements additional
+    This function is used within find_ale_afe_pairs which implements additional
     filtering steps and reports pairwise alternative AFE/ALE events.
 
     :param segment_graph: isotools.SegmentGraph object
@@ -174,7 +174,7 @@ def get_ale_afe(segment_graph, which="ALE"):
     return out
 
 
-def find_ale_afe(gene, which: str = "ALE"):
+def find_ale_afe_pairs(gene, which: str = "ALE"):
     """Generator for ALE/AFE events similar to find_splice_bubbles
 
     To identify potential ALE and AFE events in a gene, we first identify all
@@ -205,8 +205,7 @@ def find_ale_afe(gene, which: str = "ALE"):
         * start coordinate (int)
         * end coordinate (int)
         * event type, either "AFE" or "ALE" (str)
-        * primary isoform nodes (tuple)
-        * alternate isoform nodes (tuple)
+        * coordinates in SUPPA2-like format
     """
     events = get_ale_afe(gene.segment_graph, which=which)
     for pre in events:
@@ -256,8 +255,6 @@ def find_ale_afe(gene, which: str = "ALE"):
                     s1,
                     s2,
                     which,
-                    prim_nodes,
-                    alt_nodes,
                     coord,
                 )
 
@@ -287,7 +284,7 @@ def test_ale_afe(
     implemented in isotools_extensions.alt_pas.test_alternative_pas.
 
     Alternative first/last exon events with multiple exons are supported. See
-    docstring for `find_ale_afe` and `get_ale_afe` for details.
+    docstring for `find_ale_afe_pairs` and `get_ale_afe` for details.
 
     :param transcriptome: isotools.Transcriptome object
     :param gene: isotools.Gene object
@@ -331,7 +328,7 @@ def test_ale_afe(
         min_sa *= sum(len(group) for group in groups[:2])
     res = []
     for which in ["ALE", "AFE"]:
-        for setA, setB, start, end, splice_type, nodesA, nodesB, coord in find_ale_afe(
+        for setA, setB, start, end, splice_type, coord in find_ale_afe_pairs(
             gene, which
         ):
             junction_cov = gene.coverage[:, setB].sum(1)
