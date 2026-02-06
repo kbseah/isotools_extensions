@@ -273,7 +273,6 @@ def test_ale_afe(
     min_n: int = 5,
     min_sa: float = 0.51,
     test="auto",  # either string with test name or a custom test function
-    padj_method="fdr_bh",
 ):
     """Test for alternative last/first exon (ALE/AFE) events
 
@@ -308,8 +307,6 @@ def test_ale_afe(
         with signature test(x: list, n: list) -> (pvalue: float, params: tuple).
         If "auto", selects betabinom_lr if there are at least two samples per
         group, otherwise uses proportions test.
-    :param padj_method: Method for multiple testing correction (not implemented
-        yet)
     :returns pd.DataFrame: DataFrame with test results for all identified
         ALE/AFE events. Columns are identical with
         isotools._transcriptome_stats.altsplice_test output except for "coord",

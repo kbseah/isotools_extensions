@@ -398,7 +398,6 @@ def test_alternative_pas(
     min_n: int = 5,
     min_sa: float = 0.51,
     test="auto",  # either string with test name or a custom test function
-    padj_method="fdr_bh",
 ):
     """Identify and test alternative PAS within an isotools Gene
 
@@ -429,7 +428,6 @@ def test_alternative_pas(
     :param min_n:
     :param min_sa:
     :param test: Either "auto" to use isotools default test, or a custom test function
-    :param padj_method: Method for multiple testing correction
     :returns: DataFrame with test results for alternative PAS events
     """
     groupnames, groups_arr, grp_idx = _check_groups(transcriptome, groups)
