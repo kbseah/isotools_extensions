@@ -232,8 +232,6 @@ def find_ale_afe_pairs(gene, which: str = "ALE"):
                     e2,
                     e3,
                     which,
-                    prim_nodes,
-                    alt_nodes,
                     coord,
                 )
             elif (which == "AFE" and gene.strand == "+") or (
