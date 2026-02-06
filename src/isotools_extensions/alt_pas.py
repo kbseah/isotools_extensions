@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 from collections import defaultdict
 from itertools import combinations
 
@@ -47,8 +45,9 @@ def plot_transcript_terminal_pileup(
                 yy = list(pileups[sample].values())
                 ax[i].vlines(xx, ymin=[0 for y in yy], ymax=yy)
         return (fig, ax)
-    except KeyError:
-        raise KeyError("Parameter `which` must be either 'PAS' or 'TSS'")
+    except KeyError as e:
+        e.add_note("Parameter `which` must be either 'PAS' or 'TSS'")
+        raise
 
 
 def plot_gene_terminal_pileup(
@@ -101,8 +100,9 @@ def plot_gene_terminal_pileup(
                 ax[i].vlines(xx, ymin=[0 for y in yy], ymax=yy)
             ax[-1].set_xlim(xlim)
         return (fig, ax)
-    except KeyError:
-        raise KeyError("Parameter `which` must be either 'PAS' or 'TSS'")
+    except KeyError as e:
+        e.add_note("Parameter `which` must be either 'PAS' or 'TSS'")
+        raise
 
 
 def pileup_to_smoothed(pileup, smooth_window: int = 31):
@@ -177,7 +177,7 @@ def assign_to_closest_peak(pos, peaks):
 
 def translate_peaks_offset(peaks, offset):
     # Translate array indices back to genomic coordinates
-    peaks_new = (
+    return (
         np.array([p + offset for p in peaks[0]]),
         {
             "prominences": peaks[1]["prominences"],
@@ -185,7 +185,6 @@ def translate_peaks_offset(peaks, offset):
             "right_bases": np.array([rb + offset for rb in peaks[1]["right_bases"]]),
         },
     )
-    return peaks_new
 
 
 def get_gene_terminal_peaks(
@@ -207,7 +206,8 @@ def get_gene_terminal_peaks(
     :param smooth_window: Window size for smoothing function
     :param prominence: Minimum peak prominence to retain
     """
-    assert which in ["PAS", "TSS"], "which must be either 'PAS' or 'TSS' only"
+    if which not in ["PAS", "TSS"]:
+        raise ValueError("Option `which` must be either PAS or TSS only")
     # Check that trids are valid
     if trids is None:
         trids = list(range(len(gene.transcripts)))
@@ -336,11 +336,7 @@ def plot_gene_terminal_peaks(
     )
     # Get set of all samples
     samples = sorted(
-        {
-            k
-            for s in peak_assignments["total"]
-            for k in peak_assignments["total"][s]
-        }
+        {k for s in peak_assignments["total"] for k in peak_assignments["total"][s]}
     )
     peaks_by_index = dict(enumerate(peaks["total"][0]))
 
@@ -382,7 +378,11 @@ def get_gene_last_exons(gene):
     """
     last_exons = {}
     for trid, transcript in enumerate(gene.transcripts):
-        last_exon_start = transcript["exons"][-1][0] if gene.strand == "+" else transcript["exons"][0][1]
+        last_exon_start = (
+            transcript["exons"][-1][0]
+            if gene.strand == "+"
+            else transcript["exons"][0][1]
+        )
         last_exons[last_exon_start] = last_exons.get(last_exon_start, []) + [trid]
     return last_exons
 
@@ -434,12 +434,17 @@ def test_alternative_pas(
     # Choose appropriate test
     if isinstance(test, str):
         if test == "auto":
-            test = TESTS["betabinom_lr"] if min(len(group) for group in groups_arr[:2]) > 1 else TESTS["proportions"]
+            test = (
+                TESTS["betabinom_lr"]
+                if min(len(group) for group in groups_arr[:2]) > 1
+                else TESTS["proportions"]
+            )
         else:
             try:
                 test = TESTS[test]
-            except KeyError:
-                raise KeyError(f"Test name {test} not found")
+            except KeyError as e:
+                e.add_note(f"Test name {test} not found")
+                raise
     if min_sa < 1:
         min_sa *= sum(len(group) for group in groups_arr[:2])
     # Store results here
@@ -497,9 +502,9 @@ def test_alternative_pas(
                     pval,
                     x,
                     n,
+                    *list(params),
+                    *covs,
                 ]
-                + list(params)
-                + covs
             )
     # Column names
     colnames = [

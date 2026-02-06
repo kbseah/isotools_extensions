@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 from collections import defaultdict
 from itertools import combinations
 
@@ -37,7 +35,7 @@ def get_exon_nodes(segment_graph, transcript, start_node=None, end_node=None):
             out.append((exon_start, node))
             return out
         else:
-            raise Exception
+            raise ValueError("Invalid exon node")
 
 
 def get_exon_coords(segment_graph, transcript: int):
@@ -318,12 +316,17 @@ def test_ale_afe(
     sidx = np.array(grp_idx[0] + grp_idx[1])
     if isinstance(test, str):
         if test == "auto":
-            test = TESTS["betabinom_lr"] if min(len(group) for group in groups[:2]) > 1 else TESTS["proportions"]
+            test = (
+                TESTS["betabinom_lr"]
+                if min(len(group) for group in groups[:2]) > 1
+                else TESTS["proportions"]
+            )
         else:
             try:
                 test = TESTS[test]
-            except KeyError:
-                raise KeyError(f"Test name {test} not found")
+            except KeyError as e:
+                e.add_note(f"Test name {test} not found")
+                raise
     if min_sa < 1:
         min_sa *= sum(len(group) for group in groups[:2])
     res = []
@@ -362,9 +365,9 @@ def test_ale_afe(
                     x,
                     n,
                     coord,
+                    *list(params),
+                    *covs,
                 ]
-                + list(params)
-                + covs
             )
     colnames = [
         "gene",
