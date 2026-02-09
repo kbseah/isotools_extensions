@@ -22,11 +22,5 @@ Please cite the original IsoTools papers and this repository if you use it.
 
 ## TODO
 
-* Simplify ALE/AFE test to consider only single terminal exons
-* Consider terminal exons with same distal end to be the same, because of 5'-
-  and 3'-fragmentation
-* Filter out transcripts annotated as fragments during the test procedure
 * Report PAS peak calls as features in GTF or GFF format along with their
   downstream A content; should parent features be exon, transcript, or gene?
-* Rewrite extended functions as subclass or mixin methods for cleaner
-  inheritance.
