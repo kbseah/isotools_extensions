@@ -468,11 +468,16 @@ def test_alternative_pas(
             group_cov = defaultdict(lambda: defaultdict(int))  # pas, group -> [cov]
             for i in peak_assignments["total"]:
                 for g in groups:
-                    group_cov[i][g] = [peak_assignments["total"][i][s] for s in groups[g]]
+                    group_cov[i][g] = [
+                        peak_assignments["total"][i][s] for s in groups[g]
+                    ]
             # Take pairwise combinations of alternative PAS and test for differential coverage
             for i, j in combinations(group_cov, 2):
                 x = [np.array(group_cov[i][g]) for g in groups]
-                n = [np.array(group_cov[i][g]) + np.array(group_cov[j][g]) for g in groups]
+                n = [
+                    np.array(group_cov[i][g]) + np.array(group_cov[j][g])
+                    for g in groups
+                ]
                 total_cov = sum([e.sum() for e in n])
                 alt_cov = sum([e.sum() for e in x])
                 if total_cov < min_total:
@@ -488,7 +493,9 @@ def test_alternative_pas(
                 # pvalue is NaN, comparison is invalid (e.g. all counts zero for both groups in one alternate)
                 if np.isnan(pval):
                     continue
-                covs = [val for lists in zip(x, n) for pair in zip(*lists) for val in pair]
+                covs = [
+                    val for lists in zip(x, n) for pair in zip(*lists) for val in pair
+                ]
                 res.append(
                     [
                         gene.name,

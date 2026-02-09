@@ -257,6 +257,67 @@ def find_ale_afe_pairs(gene, which: str = "ALE"):
                 )
 
 
+def find_ale_afe_simple_pairs(
+    gene, which="ALE", query="not FRAGMENT and not MONO_EXON"
+):
+    """Generator for ALE/AFE events, ignoring common splice junctions
+
+    "Naive" version of ALE/AFE finding that simply groups all transcripts by
+    their common last/first intron, and then yields all pairwise combinations.
+    The PAS/TSS site is not considered because this may vary further, and
+    because of limitations in how isotools defines PAS/TSS on per-transcript
+    level. The transcript query to filter out fragments and mono-exonic
+    transcripts is important, to reduce the number of spurious combinations.
+    Transcripts should be further filtered by their coverage; this is done at
+    the testing level in `test_ale_afe`.
+
+    See `find_ale_afe_pairs` for another version of ALE/AFE finding that takes
+    common splice junction into account.
+
+    For compatibility the first five elements of the returned tuple correspond
+    to the fields returned by isotools.SegmentGraph.find_splice_bubbles.
+
+    Primary vs. alternate forms are determined by sort order of the node indices.
+
+    :param gene: isotools.Gene object
+    :param which: Either "ALE" or "AFE"
+    :param query: Filter query passed to filter_transcripts
+    :returns tuple: Tuple with the following elements:
+        * primary isoform transcripts (list of transcript indices)
+        * alternate isoform transcripts (list)
+        * start coordinate (int)
+        * end coordinate (int)
+        * event type, either "AFE" or "ALE" (str)
+        * coordinates of the two alternative last/first introns separated by a
+          pipe character, supplied because the start/end coordinates only are
+          not sufficient to identify an ALE/AFE event uniquely.
+    """
+    trids = gene.filter_transcripts(query=query)
+    trids_by_jn = defaultdict(list)
+    for t in trids:
+        # All transcripts that share the same last/first intron
+        if (gene.strand == "+" and which == "ALE") or (
+            gene.strand == "-" and which == "AFE"
+        ):
+            junction = (
+                gene.transcripts[t]["exons"][-2][1],
+                gene.transcripts[t]["exons"][-1][0],
+            )
+        elif (gene.strand == "+" and which == "AFE") or (
+            gene.strand == "-" and which == "ALE"
+        ):
+            junction = (
+                gene.transcripts[t]["exons"][0][1],
+                gene.transcripts[t]["exons"][1][0],
+            )
+        trids_by_jn[junction].append(t)
+    for i, j in combinations(trids_by_jn.keys(), 2):
+        setA, setB = trids_by_jn[i], trids_by_jn[j]
+        start, end = min([*i, *j]), max([*i, *j])
+        coord = ":".join([str(s) for s in i]) + "|" + ":".join([str(s) for s in j])
+        yield (setA, setB, start, end, which, coord)
+
+
 def test_ale_afe(
     self,
     groups: dict,
@@ -265,7 +326,7 @@ def test_ale_afe(
     min_n: int = 5,
     min_sa: float = 0.51,
     test="auto",  # either string with test name or a custom test function
-    pair_generator=find_ale_afe_pairs,
+    pair_generator=find_ale_afe_simple_pairs,
     **kwargs,
 ):
     """Test for alternative last/first exon (ALE/AFE) events
@@ -283,7 +344,8 @@ def test_ale_afe(
     implemented in isotools_extensions.alt_pas.test_alternative_pas.
 
     Alternative first/last exon events with multiple exons are supported. See
-    docstring for `find_ale_afe_pairs` and `get_ale_afe` for details.
+    docstrings for `find_ale_afe_simple_pairs`, `find_ale_afe_pairs`, and
+    `get_ale_afe` for details.
 
     :param self: isotools.Transcriptome object
     :param groups: Dictionary mapping group names to lists of sample names
@@ -337,7 +399,10 @@ def test_ale_afe(
                 if total_cov[sidx].sum() < min_total:
                     continue
                 alt_fraction = junction_cov[sidx].sum() / total_cov[sidx].sum()
-                if alt_fraction < min_alt_fraction or alt_fraction > 1 - min_alt_fraction:
+                if (
+                    alt_fraction < min_alt_fraction
+                    or alt_fraction > 1 - min_alt_fraction
+                ):
                     continue
                 x = [junction_cov[grp] for grp in grp_idx]
                 n = [total_cov[grp] for grp in grp_idx]
@@ -347,7 +412,9 @@ def test_ale_afe(
                 if np.isnan(pval):
                     continue
                 # TODO: nmdA, nmdB
-                covs = [val for lists in zip(x, n) for pair in zip(*lists) for val in pair]
+                covs = [
+                    val for lists in zip(x, n) for pair in zip(*lists) for val in pair
+                ]
                 res.append(
                     [
                         gene.name,
