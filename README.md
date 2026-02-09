@@ -14,13 +14,39 @@ A test for alternative TSS is not implemented because accurate annotation of
 sequencing technologies than 3'-terminal ends. See discussion by
 [Calvo-Roitberg et al., 2024](https://doi.org/10.1101/gr.279559.124).
 
-This package relies on a [fork](https://github.com/kbseah/IsoTools2) that
-implements some bug fixes not yet incorporated into the upstream repository.
 
-Please cite the original IsoTools papers and this repository if you use it.
+## Installation
+
+Install with `pip` into a Python virtual environment:
+
+```bash
+python -m venv ./my_env
+source my_env/bin/activate
+cd path/to/isotools_extensions
+pip install .
+```
+
+
+## Usage
+
+Import `isotools_extensions` after importing `isotools`.
 
 
 ## TODO
 
 * Report PAS peak calls as features in GTF or GFF format along with their
   downstream A content; should parent features be exon, transcript, or gene?
+
+
+## License
+
+[MIT](LICENSE)
+
+
+## Citation
+
+This package uses a [fork](https://github.com/kbseah/IsoTools2/tree/bugfix)
+that implements some bug fixes not yet incorporated into the upstream
+repository.
+
+Please cite the original IsoTools papers and this repository if you use it.
