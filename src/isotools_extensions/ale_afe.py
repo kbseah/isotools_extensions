@@ -258,14 +258,15 @@ def find_ale_afe_pairs(gene, which: str = "ALE"):
 
 
 def test_ale_afe(
-    transcriptome,
-    gene,
+    self,
     groups: dict,
     min_total: int = 100,
     min_alt_fraction: float = 0.01,  # different from Isotools default
     min_n: int = 5,
     min_sa: float = 0.51,
     test="auto",  # either string with test name or a custom test function
+    pair_generator=find_ale_afe_pairs,
+    **kwargs,
 ):
     """Test for alternative last/first exon (ALE/AFE) events
 
@@ -284,8 +285,7 @@ def test_ale_afe(
     Alternative first/last exon events with multiple exons are supported. See
     docstring for `find_ale_afe_pairs` and `get_ale_afe` for details.
 
-    :param transcriptome: isotools.Transcriptome object
-    :param gene: isotools.Gene object
+    :param self: isotools.Transcriptome object
     :param groups: Dictionary mapping group names to lists of sample names
     :param min_total: Minimum total coverage across all samples to consider an
         event
@@ -300,6 +300,8 @@ def test_ale_afe(
         with signature test(x: list, n: list) -> (pvalue: float, params: tuple).
         If "auto", selects betabinom_lr if there are at least two samples per
         group, otherwise uses proportions test.
+    :param pair_generator: Function that generates pairs of ALEs/AFEs to test
+    :param **kwargs: Additional keyword arguments passed to iter_genes
     :returns pd.DataFrame: DataFrame with test results for all identified
         ALE/AFE events. Columns are identical with
         isotools._transcriptome_stats.altsplice_test output except for "coord",
@@ -307,7 +309,7 @@ def test_ale_afe(
         is either "ALE" or "AFE".
     """
     # There should be only two groups
-    groupnames, groups, grp_idx = _check_groups(transcriptome, groups)
+    groupnames, groups, grp_idx = _check_groups(self, groups)
     sidx = np.array(grp_idx[0] + grp_idx[1])
     if isinstance(test, str):
         if test == "auto":
@@ -325,45 +327,46 @@ def test_ale_afe(
     if min_sa < 1:
         min_sa *= sum(len(group) for group in groups[:2])
     res = []
-    for which in ["ALE", "AFE"]:
-        for setA, setB, start, end, splice_type, coord in find_ale_afe_pairs(
-            gene, which
-        ):
-            junction_cov = gene.coverage[:, setB].sum(1)
-            total_cov = gene.coverage[:, setA].sum(1) + junction_cov
-            if total_cov[sidx].sum() < min_total:
-                continue
-            alt_fraction = junction_cov[sidx].sum() / total_cov[sidx].sum()
-            if alt_fraction < min_alt_fraction or alt_fraction > 1 - min_alt_fraction:
-                continue
-            x = [junction_cov[grp] for grp in grp_idx]
-            n = [total_cov[grp] for grp in grp_idx]
-            if sum((ni >= min_n).sum() for ni in n[:2]) < min_sa:
-                continue
-            pval, params = test(x[:2], n[:2])
-            if np.isnan(pval):
-                continue
-            # TODO: nmdA, nmdB
-            covs = [val for lists in zip(x, n) for pair in zip(*lists) for val in pair]
-            res.append(
-                [
-                    gene.name,
-                    gene.id,
-                    gene.chrom,
-                    gene.strand,
-                    start,
-                    end,
-                    which,
-                    pval,
-                    setA,
-                    setB,
-                    x,
-                    n,
-                    coord,
-                    *list(params),
-                    *covs,
-                ]
-            )
+    for gene in self.iter_genes(**kwargs):
+        for which in ["ALE", "AFE"]:
+            for setA, setB, start, end, splice_type, coord in pair_generator(
+                gene, which
+            ):
+                junction_cov = gene.coverage[:, setB].sum(1)
+                total_cov = gene.coverage[:, setA].sum(1) + junction_cov
+                if total_cov[sidx].sum() < min_total:
+                    continue
+                alt_fraction = junction_cov[sidx].sum() / total_cov[sidx].sum()
+                if alt_fraction < min_alt_fraction or alt_fraction > 1 - min_alt_fraction:
+                    continue
+                x = [junction_cov[grp] for grp in grp_idx]
+                n = [total_cov[grp] for grp in grp_idx]
+                if sum((ni >= min_n).sum() for ni in n[:2]) < min_sa:
+                    continue
+                pval, params = test(x[:2], n[:2])
+                if np.isnan(pval):
+                    continue
+                # TODO: nmdA, nmdB
+                covs = [val for lists in zip(x, n) for pair in zip(*lists) for val in pair]
+                res.append(
+                    [
+                        gene.name,
+                        gene.id,
+                        gene.chrom,
+                        gene.strand,
+                        start,
+                        end,
+                        which,
+                        pval,
+                        setA,
+                        setB,
+                        x,
+                        n,
+                        coord,
+                        *list(params),
+                        *covs,
+                    ]
+                )
     colnames = [
         "gene",
         "gene_id",

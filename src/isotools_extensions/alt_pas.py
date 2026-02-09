@@ -388,8 +388,7 @@ def get_gene_last_exons(gene):
 
 
 def test_alternative_pas(
-    transcriptome,
-    gene,
+    self,
     groups: dict,
     smooth_window: int = 31,
     prominence: int = 2,
@@ -398,6 +397,7 @@ def test_alternative_pas(
     min_n: int = 5,
     min_sa: float = 0.51,
     test="auto",  # either string with test name or a custom test function
+    **kwargs,
 ):
     """Identify and test alternative PAS within an isotools Gene
 
@@ -417,8 +417,7 @@ def test_alternative_pas(
 
     Column "splice_type" is always "PAS" in this function.
 
-    :param transcriptome: isotools.Transcriptome object
-    :param gene: isotools.Gene object from the transcriptome
+    :param self: isotools.Transcriptome object
     :param groups: Dict mapping sample names to group names
     :param smooth_window: Window size for smoothing function in peak calling
     :param prominence: Minimum peak prominence to retain in peak calling
@@ -428,9 +427,10 @@ def test_alternative_pas(
     :param min_n:
     :param min_sa:
     :param test: Either "auto" to use isotools default test, or a custom test function
+    :param **kwargs: Additional keyword arguments passed to iter_genes
     :returns: DataFrame with test results for alternative PAS events
     """
-    groupnames, groups_arr, grp_idx = _check_groups(transcriptome, groups)
+    groupnames, groups_arr, grp_idx = _check_groups(self, groups)
     # Choose appropriate test
     if isinstance(test, str):
         if test == "auto":
@@ -449,63 +449,64 @@ def test_alternative_pas(
         min_sa *= sum(len(group) for group in groups_arr[:2])
     # Store results here
     res = []
-    # For each last exon, get PAS peaks and test for differential usage
-    trids_by_last_exon = get_gene_last_exons(gene)
-    for last_exon in trids_by_last_exon:
-        pileup, coords, smoothed, peaks, peak_assignments = get_gene_terminal_peaks(
-            gene=gene,
-            trids=trids_by_last_exon[last_exon],
-            which="PAS",
-            smooth_window=smooth_window,
-            prominence=prominence,
-        )
-        # No peaks found, likely because coverage is too low
-        if peaks is None:
-            continue
-        # TODO: report number of reads not assigned to a called peak
-        # Count coverage per PAS peak per group/sample
-        group_cov = defaultdict(lambda: defaultdict(int))  # pas, group -> [cov]
-        for i in peak_assignments["total"]:
-            for g in groups:
-                group_cov[i][g] = [peak_assignments["total"][i][s] for s in groups[g]]
-        # Take pairwise combinations of alternative PAS and test for differential coverage
-        for i, j in combinations(group_cov, 2):
-            x = [np.array(group_cov[i][g]) for g in groups]
-            n = [np.array(group_cov[i][g]) + np.array(group_cov[j][g]) for g in groups]
-            total_cov = sum([e.sum() for e in n])
-            alt_cov = sum([e.sum() for e in x])
-            if total_cov < min_total:
-                continue
-            if alt_cov / total_cov < min_alt_fraction or alt_cov / total_cov > (
-                1 - min_alt_fraction
-            ):
-                continue
-            # TODO: this doesn't look right given the definition of min_sa in Isotools docstring
-            if sum((ni >= min_n).sum() for ni in n[:2]) < min_sa:
-                continue
-            pval, params = test(x[:2], n[:2])
-            # pvalue is NaN, comparison is invalid (e.g. all counts zero for both groups in one alternate)
-            if np.isnan(pval):
-                continue
-            covs = [val for lists in zip(x, n) for pair in zip(*lists) for val in pair]
-            res.append(
-                [
-                    gene.name,
-                    gene.id,
-                    gene.chrom,
-                    gene.strand,
-                    last_exon,
-                    trids_by_last_exon[last_exon],
-                    peaks["total"][0][i],
-                    peaks["total"][0][j],
-                    "PAS",
-                    pval,
-                    x,
-                    n,
-                    *list(params),
-                    *covs,
-                ]
+    for gene in self.iter_genes(**kwargs):
+        # For each last exon, get PAS peaks and test for differential usage
+        trids_by_last_exon = get_gene_last_exons(gene)
+        for last_exon in trids_by_last_exon:
+            pileup, coords, smoothed, peaks, peak_assignments = get_gene_terminal_peaks(
+                gene=gene,
+                trids=trids_by_last_exon[last_exon],
+                which="PAS",
+                smooth_window=smooth_window,
+                prominence=prominence,
             )
+            # No peaks found, likely because coverage is too low
+            if peaks is None:
+                continue
+            # TODO: report number of reads not assigned to a called peak
+            # Count coverage per PAS peak per group/sample
+            group_cov = defaultdict(lambda: defaultdict(int))  # pas, group -> [cov]
+            for i in peak_assignments["total"]:
+                for g in groups:
+                    group_cov[i][g] = [peak_assignments["total"][i][s] for s in groups[g]]
+            # Take pairwise combinations of alternative PAS and test for differential coverage
+            for i, j in combinations(group_cov, 2):
+                x = [np.array(group_cov[i][g]) for g in groups]
+                n = [np.array(group_cov[i][g]) + np.array(group_cov[j][g]) for g in groups]
+                total_cov = sum([e.sum() for e in n])
+                alt_cov = sum([e.sum() for e in x])
+                if total_cov < min_total:
+                    continue
+                if alt_cov / total_cov < min_alt_fraction or alt_cov / total_cov > (
+                    1 - min_alt_fraction
+                ):
+                    continue
+                # TODO: this doesn't look right given the definition of min_sa in Isotools docstring
+                if sum((ni >= min_n).sum() for ni in n[:2]) < min_sa:
+                    continue
+                pval, params = test(x[:2], n[:2])
+                # pvalue is NaN, comparison is invalid (e.g. all counts zero for both groups in one alternate)
+                if np.isnan(pval):
+                    continue
+                covs = [val for lists in zip(x, n) for pair in zip(*lists) for val in pair]
+                res.append(
+                    [
+                        gene.name,
+                        gene.id,
+                        gene.chrom,
+                        gene.strand,
+                        last_exon,
+                        trids_by_last_exon[last_exon],
+                        peaks["total"][0][i],
+                        peaks["total"][0][j],
+                        "PAS",
+                        pval,
+                        x,
+                        n,
+                        *list(params),
+                        *covs,
+                    ]
+                )
     # Column names
     colnames = [
         "gene",
