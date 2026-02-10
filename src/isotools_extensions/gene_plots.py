@@ -1,5 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from collections import defaultdict
+from .alt_pas import get_gene_terminal_peaks, get_transcript_terminal_peaks
 
 
 def sashimi_figure_altsplice_result(
@@ -304,3 +306,220 @@ def domains_figure_altsplice_result(
         **kwargs,
     )
     return fig, axs
+
+
+def plot_transcript_terminal_pileup(
+    self, trid: int, which="PAS", total: bool = False, show_unified: bool = False
+):
+    """Plot pileup of PAS or TSS for an isotools transcript
+
+    :param self: isotools.Gene object
+    :param trid: Transcript index
+    :param which: Either "PAS" or "TSS"
+    :param total: Sum pileups for all samples if True, else plot samples separately
+    :param show_unified: Overlay unified TSS/PAS consensus value from IsoTools
+    :returns: Figure and axis objects
+    """
+    try:
+        pileups = self.transcripts[trid][which]
+        unified = self.transcripts[trid][which + "_unified"]
+        if total:
+            fig, ax = plt.subplots(1, 1, figsize=(8, 2))
+            pileup = {}
+            for sample in pileups:
+                for idx in pileups[sample]:
+                    pileup[idx] = pileup.get(idx, 0) + pileups[sample][idx]
+            xx = list(pileup.keys())
+            yy = list(pileup.values())
+            ax.vlines(xx, ymin=[0 for y in yy], ymax=yy)
+        else:
+            fig, ax = plt.subplots(len(pileups), 1, figsize=(8, 6), sharex=True)
+            if show_unified:
+                for i, sample in enumerate(unified):
+                    xx = list(unified[sample].keys())
+                    yy = list(unified[sample].values())
+                    ax[i].vlines(xx, ymin=[0 for y in yy], ymax=yy, color="green")
+            for i, sample in enumerate(pileups):
+                xx = list(pileups[sample].keys())
+                yy = list(pileups[sample].values())
+                ax[i].vlines(xx, ymin=[0 for y in yy], ymax=yy)
+        return (fig, ax)
+    except KeyError as e:
+        e.add_note("Parameter `which` must be either 'PAS' or 'TSS'")
+        raise
+
+
+def plot_gene_terminal_pileup(
+    self,
+    which="PAS",
+    total: bool = False,
+    show_range_minpeak: int = 5,
+    plot_margin: int = 31,
+):
+    """Plot pileup of PAS or TSS for an isotools Gene
+
+    :param self: isotools.Gene object
+    :param which: Either "PAS" or "TSS"
+    :param total: Sum pileups for all samples if True, else plot samples
+        separately
+    :param show_range_minpeak: Minimum peak height when choosing range to
+        display; peaks below this height will be ignored when setting x-axis
+        limits
+    :returns: Figure and axis objects
+    """
+    # TODO: Sort order of the samples in the plot
+    # TODO: Add labels to subplots with sample names
+    try:
+        pileups = defaultdict(lambda: defaultdict(int))
+        for transcript in self.transcripts:
+            for sample in transcript[which]:
+                for pos in transcript[which][sample]:
+                    pileups[sample][pos] += transcript[which][sample][pos]
+        pileup = {}
+        for sample in pileups:
+            for idx in pileups[sample]:
+                pileup[idx] = pileup.get(idx, 0) + pileups[sample][idx]
+        xlim = (
+            min([x for x in pileup if pileup[x] >= show_range_minpeak]) - plot_margin,
+            max([x for x in pileup if pileup[x] >= show_range_minpeak]) + plot_margin,
+        )
+        if total:
+            fig, ax = plt.subplots(1, 1, figsize=(8, 1))
+            xx = list(pileup.keys())
+            yy = list(pileup.values())
+            ax.vlines(xx, ymin=[0 for y in yy], ymax=yy)
+            ax.set_xlim(xlim)
+        else:
+            fig, ax = plt.subplots(
+                len(pileups), 1, figsize=(8, 1 * len(pileups)), sharex=True
+            )
+            for i, sample in enumerate(pileups):
+                xx = list(pileups[sample].keys())
+                yy = list(pileups[sample].values())
+                ax[i].vlines(xx, ymin=[0 for y in yy], ymax=yy)
+            ax[-1].set_xlim(xlim)
+        return (fig, ax)
+    except KeyError as e:
+        e.add_note("Parameter `which` must be either 'PAS' or 'TSS'")
+        raise
+
+
+def plot_transcript_terminal_peaks(
+    self,
+    trid,
+    which="PAS",
+    total=False,
+    smooth_window=31,
+    show_peaks=True,
+    prominence=2,
+):
+    """Plot smoothed PAS/TSS pileups and called peaks for an isotools transcript
+
+    Unlike default isotools behavior, this calls all peaks without choosing a
+    unified consensus for each transcript.
+
+    :param self: isotools.Gene object
+    :param trid: Transcript index
+    :param which: Either "PAS" or "TSS"
+    :param total: Sum pileups for all samples if True, else plot samples separately
+    :param smooth_window: Window size for smoothing function
+    :param prominence: Minimum peak prominence to retain
+    """
+    pileup, coords, smoothed, peaks = get_transcript_terminal_peaks(
+        gene=self,
+        trid=trid,
+        which=which,
+        total=total,
+        smooth_window=smooth_window,
+        prominence=prominence,
+    )
+    fig, ax = plt.subplots(
+        len(smoothed), 1, figsize=(8, 2 * len(smoothed)), sharex=True
+    )
+    for idx, s in enumerate(smoothed):
+        myax = ax if len(smoothed) == 1 else ax[idx]
+        myax.plot(coords[s], smoothed[s])
+        if show_peaks:
+            myax.vlines(
+                peaks[s][0],
+                ymin=[0 for i in peaks[s][0]],
+                ymax=peaks[s][1]["prominences"],
+                color="red",
+            )
+    return (fig, ax, pileup, smoothed, peaks)
+
+
+def plot_gene_terminal_peaks(
+    self,
+    trids: list = None,
+    which="PAS",
+    total=True,
+    smooth_window: int = 31,
+    show_peaks: bool = True,
+    prominence: int = 2,
+):
+    """Plot PAS/TSS called peaks for an isotools gene
+
+    Unlike default isotools behavior, this calls all peaks without choosing a
+    unified consensus for each transcript.
+
+    :param self: isotools.Gene object
+    :param trids: List of transcript IDs to include (as ints); if None, include
+        all transcripts
+    :param which: Either "PAS" or "TSS"
+    :param total: Sum pileups for all samples if True, else plot samples separately
+    :param smooth_window: Window size for smoothing function
+    :param show_peaks: Whether to show called peaks on the plot
+    :param prominence: Minimum peak prominence to retain
+    """
+    # TODO: Sort order of the samples in the plot
+    # TODO: Add labels to subplots with sample names
+    pileup, coords, smoothed, peaks, peak_assignments = get_gene_terminal_peaks(
+        gene=self,
+        trids=trids,
+        which=which,
+        smooth_window=smooth_window,
+        prominence=prominence,
+    )
+    # No peaks found, likely because coverage is too low
+    if peaks is None:
+        return None, None, pileup, smoothed, peaks, peak_assignments
+    # Set xlim around peaks only
+    xlim = (
+        min(peaks["total"][0]) - smooth_window,
+        max(peaks["total"][0]) + smooth_window,
+    )
+    # Get set of all samples
+    samples = sorted(
+        {k for s in peak_assignments["total"] for k in peak_assignments["total"][s]}
+    )
+    peaks_by_index = dict(enumerate(peaks["total"][0]))
+
+    if total:
+        counts_by_index = {
+            i: sum(peak_assignments["total"][i].values())
+            for i in peak_assignments["total"]
+        }
+        fig, ax = plt.subplots(1, 1, figsize=(8, 1))
+        ax.vlines(
+            [peaks_by_index[i] for i in peaks_by_index],
+            0,
+            [counts_by_index.get(i, 0) for i in peaks_by_index],
+        )
+
+    else:
+        fig, ax = plt.subplots(
+            len(samples), 1, figsize=(8, 1 * len(samples)), sharex=True
+        )
+        for idx, s in enumerate(samples):
+            myax = ax if len(samples) == 1 else ax[idx]
+            counts_by_index = {
+                i: peak_assignments["total"][i].get(s, 0) for i in peaks_by_index
+            }
+            myax.vlines(
+                [peaks_by_index[i] for i in peaks_by_index],
+                0,
+                [counts_by_index.get(i, 0) for i in peaks_by_index],
+            )
+        myax.set_xlim(xlim)
+    return fig, ax, pileup, smoothed, peaks, peak_assignments
