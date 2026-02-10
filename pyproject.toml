@@ -1,7 +1,7 @@
 [project]
 name = "isotools_extensions"
 requires-python = ">= 3.11"
-version = "0.1.0"
+version = "0.1.1"
 authors = [{name = "Brandon Seah", email = "brandon_seah@tll.org.sg"}]
 dependencies = [
     "isotools @ git+https://github.com/kbseah/IsoTools2.git@d44452d7886f80d2a13f172ff25da9441e3b23f9",
