@@ -258,7 +258,7 @@ def find_ale_afe_pairs(gene, which: str = "ALE"):
 
 
 def find_ale_afe_simple_pairs(
-    gene, which="ALE", query="not FRAGMENT and not MONO_EXON"
+    gene, which="ALE", query="not FRAGMENT and not UNSPLICED"
 ):
     """Generator for ALE/AFE events, ignoring common splice junctions
 
