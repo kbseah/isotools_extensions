@@ -31,6 +31,27 @@ pip install .
 
 Import `isotools_extensions` after importing `isotools`.
 
+Extended functions are monkeypatched to `isotools.Gene` and
+`isotools.Transcriptome` classes:
+
+ * `Transcriptome.test_alternative_pas` -- Test alternative PAS events
+ * `Transcriptome.test_ale_afe` -- Test ALE/AFE events
+ * `Gene.domains_figure` -- Plot exons with annotated domains and coverage in
+       one figure
+ * `Gene.domains_figure_altsplice_result` -- Plot exons with annotated domains
+       and coverage in one figure, coverage plots grouped and colored by
+       alternative splicing event contrast
+ * `Gene.sashimi_figure_altsplice_result` -- Plot sashimi figure and gene
+       tracks, grouped and colored by alternative splicing event contrast
+ * `Gene.plot_gene_terminal_peaks` -- Plot PAS position peak calls for a single
+       gene
+ * `Gene.plot_gene_terminal_pileup` -- Plot PAS position coverage pileups for a
+       single gene
+ * `Gene.plot_transcript_terminal_peaks` -- Plot PAS position peak calls for a
+       single transcript
+ * `Gene.plot_transcript_terminal_pileup` -- Plot PAS position coverage pileups
+       for a single transcript
+
 
 ## TODO
 
