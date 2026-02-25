@@ -2,21 +2,22 @@ from collections import defaultdict
 
 import matplotlib.pyplot as plt
 import numpy as np
-
+import pandas as pd
+from isotools import Gene
 from .alt_pas import get_gene_terminal_peaks, get_transcript_terminal_peaks
 
 
 def sashimi_figure_altsplice_result(
-    self,
+    self: Gene,
     groups: dict,
-    diff_splice_result,
-    flank=2000,
+    diff_splice_result: tuple | pd.Series,
+    flank: int = 2000,
     start=None,
     end=None,
-    query="(FSM or not (RTTS or INTERNAL_PRIMING or FRAGMENT)) and SUBSTANTIAL",
-):
+    query: str = "(FSM or not (RTTS or INTERNAL_PRIMING or FRAGMENT)) and SUBSTANTIAL",
+) -> tuple:
     """Sashimi plot and gene tracks figure for isoforms involved in a single
-    alternative splicing event
+    alternative splicing event.
 
     Augment the sashimi plot with gene tracks for isoforms of interest to help
     evaluate an alternative splicing event. The AS event must have previously
@@ -67,15 +68,23 @@ def sashimi_figure_altsplice_result(
     fig_width = 10
     gs_kw = dict(height_ratios=height_ratios)
     fig, axs = plt.subplots(
-        len(height_ratios), figsize=(fig_width, fig_height), gridspec_kw=gs_kw,
+        len(height_ratios),
+        figsize=(fig_width, fig_height),
+        gridspec_kw=gs_kw,
     )
 
     # Add gene tracks for transcripts
     self.gene_track(
-        x_range=pos, ax=axs[0], reference=False, select_transcripts=transcripts_A,
+        x_range=pos,
+        ax=axs[0],
+        reference=False,
+        select_transcripts=transcripts_A,
     )
     self.gene_track(
-        x_range=pos, ax=axs[1], reference=False, select_transcripts=transcripts_B,
+        x_range=pos,
+        ax=axs[1],
+        reference=False,
+        select_transcripts=transcripts_B,
     )
     self.gene_track(
         x_range=pos,
@@ -110,17 +119,17 @@ def sashimi_figure_altsplice_result(
 
 
 def domains_figure(
-    self,
+    self: Gene,
     groups: dict,
-    source="hmmer",
-    query="FSM or SUBSTANTIAL",
+    source: str = "hmmer",
+    query: str = "FSM or SUBSTANTIAL",
     transcript_ids=False,
     cov_color="grey",
     ref_transcript_ids=False,
     highlight=None,
-    height_factor=0.75,
+    height_factor: float = 0.75,
     **kwargs,
-):
+) -> tuple:
     """Generate figure of domains alongside scatterplot of coverage per group
 
     The domains plot will be plotted alongside a scatterplot where size of plot
@@ -166,9 +175,9 @@ def domains_figure(
         assert len(cov_color) == len(
             trids,
         ), "cov_color must be same length as number of transcripts to plot"
-        assert all(
-            [isinstance(j, str) for j in cov_color],
-        ), "cov_color must be a list of color name strings"
+        assert all(isinstance(j, str) for j in cov_color), (
+            "cov_color must be a list of color name strings"
+        )
     # Plot parameters
     fig_height = height_factor * (len(trids) + n_ref_transcripts)
     fig, axs = plt.subplots(
@@ -176,7 +185,7 @@ def domains_figure(
         2,
         figsize=(10, fig_height),
         sharey=True,
-        gridspec_kw=dict(width_ratios=[5, 2]),
+        gridspec_kw={"width_ratios": [5, 2]},
     )
     # Plot domains
     self.plot_domains(
@@ -255,16 +264,16 @@ def domains_figure(
 
 
 def domains_figure_altsplice_result(
-    self,
+    self: Gene,
     groups: dict,
     diff_splice_result,
-    source="hmmer",
-    query="FSM or SUBSTANTIAL",
+    source: str = "hmmer",
+    query: str = "FSM or SUBSTANTIAL",
     transcript_ids=False,
     ref_transcript_ids=False,
-    height_factor=0.75,
+    height_factor: float = 0.75,
     **kwargs,
-):
+) -> tuple:
     """Generate figure of domains alongside coverage scatterplot, contrasting
     transcripts involved in AS event
 
@@ -311,9 +320,13 @@ def domains_figure_altsplice_result(
 
 
 def plot_transcript_terminal_pileup(
-    self, trid: int, which="PAS", total: bool = False, show_unified: bool = False,
-):
-    """Plot pileup of PAS or TSS for an isotools transcript
+    self: Gene,
+    trid: int,
+    which: str = "PAS",
+    total: bool = False,
+    show_unified: bool = False,
+) -> tuple:
+    """Plot pileup of PAS or TSS for an isotools transcript.
 
     :param self: isotools.Gene object
     :param trid: Transcript index
@@ -345,20 +358,21 @@ def plot_transcript_terminal_pileup(
                 xx = list(pileups[sample].keys())
                 yy = list(pileups[sample].values())
                 ax[i].vlines(xx, ymin=[0 for y in yy], ymax=yy)
-        return (fig, ax)
     except KeyError as e:
         e.add_note("Parameter `which` must be either 'PAS' or 'TSS'")
         raise
+    else:
+        return (fig, ax)
 
 
 def plot_gene_terminal_pileup(
-    self,
-    which="PAS",
+    self: Gene,
+    which: str = "PAS",
     total: bool = False,
     show_range_minpeak: int = 5,
     plot_margin: int = 31,
-):
-    """Plot pileup of PAS or TSS for an isotools Gene
+) -> tuple:
+    """Plot pileup of PAS or TSS for an isotools Gene.
 
     :param self: isotools.Gene object
     :param which: Either "PAS" or "TSS"
@@ -393,29 +407,33 @@ def plot_gene_terminal_pileup(
             ax.set_xlim(xlim)
         else:
             fig, ax = plt.subplots(
-                len(pileups), 1, figsize=(8, 1 * len(pileups)), sharex=True,
+                len(pileups),
+                1,
+                figsize=(8, 1 * len(pileups)),
+                sharex=True,
             )
             for i, sample in enumerate(pileups):
                 xx = list(pileups[sample].keys())
                 yy = list(pileups[sample].values())
                 ax[i].vlines(xx, ymin=[0 for y in yy], ymax=yy)
             ax[-1].set_xlim(xlim)
-        return (fig, ax)
     except KeyError as e:
         e.add_note("Parameter `which` must be either 'PAS' or 'TSS'")
         raise
+    else:
+        return (fig, ax)
 
 
 def plot_transcript_terminal_peaks(
-    self,
-    trid,
-    which="PAS",
+    self: Gene,
+    trid: int,
+    which: str = "PAS",
     total=False,
-    smooth_window=31,
-    show_peaks=True,
-    prominence=2,
-):
-    """Plot smoothed PAS/TSS pileups and called peaks for an isotools transcript
+    smooth_window: int = 31,
+    show_peaks: bool = True,
+    prominence: int = 2,
+) -> tuple:
+    """Plot smoothed PAS/TSS pileups and called peaks for an isotools transcript.
 
     Unlike default isotools behavior, this calls all peaks without choosing a
     unified consensus for each transcript.
@@ -426,6 +444,7 @@ def plot_transcript_terminal_peaks(
     :param total: Sum pileups for all samples if True, else plot samples separately
     :param smooth_window: Window size for smoothing function
     :param prominence: Minimum peak prominence to retain
+    :returns: tuple of Figure, Axes, pileup, smoothed, and peaks
     """
     pileup, coords, smoothed, peaks = get_transcript_terminal_peaks(
         gene=self,
@@ -436,7 +455,10 @@ def plot_transcript_terminal_peaks(
         prominence=prominence,
     )
     fig, ax = plt.subplots(
-        len(smoothed), 1, figsize=(8, 2 * len(smoothed)), sharex=True,
+        len(smoothed),
+        1,
+        figsize=(8, 2 * len(smoothed)),
+        sharex=True,
     )
     for idx, s in enumerate(smoothed):
         myax = ax if len(smoothed) == 1 else ax[idx]
@@ -452,15 +474,15 @@ def plot_transcript_terminal_peaks(
 
 
 def plot_gene_terminal_peaks(
-    self,
+    self: Gene,
     trids: list = None,
-    which="PAS",
+    which: str = "PAS",
     total=True,
     smooth_window: int = 31,
     show_peaks: bool = True,
     prominence: int = 2,
-):
-    """Plot PAS/TSS called peaks for an isotools gene
+) -> tuple:
+    """Plot PAS/TSS called peaks for an isotools gene.
 
     Unlike default isotools behavior, this calls all peaks without choosing a
     unified consensus for each transcript.
@@ -476,7 +498,7 @@ def plot_gene_terminal_peaks(
     """
     # TODO: Sort order of the samples in the plot
     # TODO: Add labels to subplots with sample names
-    pileup, coords, smoothed, peaks, peak_assignments = get_gene_terminal_peaks(
+    pileup, _coords, smoothed, peaks, peak_assignments = get_gene_terminal_peaks(
         gene=self,
         trids=trids,
         which=which,
@@ -511,7 +533,10 @@ def plot_gene_terminal_peaks(
 
     else:
         fig, ax = plt.subplots(
-            len(samples), 1, figsize=(8, 1 * len(samples)), sharex=True,
+            len(samples),
+            1,
+            figsize=(8, 1 * len(samples)),
+            sharex=True,
         )
         for idx, s in enumerate(samples):
             myax = ax if len(samples) == 1 else ax[idx]

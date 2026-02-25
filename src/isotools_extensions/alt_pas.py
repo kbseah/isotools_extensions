@@ -1,25 +1,29 @@
 from collections import defaultdict
 from itertools import combinations
+from collections.abc import Callable
 
 import isotools._utils
 import numpy as np
 import pandas as pd
 from isotools._transcriptome_stats import TESTS, _check_groups
+from isotools import Gene
 from scipy.signal import find_peaks
 
 
-def pileup_to_smoothed(pileup, smooth_window: int = 31):
-    """Smooth a coverage pileup
+def pileup_to_smoothed(pileup: dict, smooth_window: int = 31) -> tuple:
+    """Smooth a coverage pileup.
 
     :param pileup: Dict of coverage values keyed by genomic coordinate
     :param smooth_window: Window size for smoothing function
     :returns: Pileup values as array, coordinates as array, and smoothed values
+    :rtype: tuple
     """
     # X coordinates of the pileup
     # Add flanking buffer of 1*smooth_window to avoid smoothed max falling
     # right at the first or last position and not being found by find_peaks
     coords = range(
-        min(pileup.keys()) - smooth_window, max(pileup.keys()) + 1 + smooth_window,
+        min(pileup.keys()) - smooth_window,
+        max(pileup.keys()) + 1 + smooth_window,
     )
     pileup_arr = [pileup.get(pos, 0) for pos in coords]
     smoothed = isotools._utils.smooth(np.array(pileup_arr), smooth_window)
@@ -27,14 +31,14 @@ def pileup_to_smoothed(pileup, smooth_window: int = 31):
 
 
 def get_transcript_terminal_peaks(
-    gene,
+    gene: Gene,
     trid: int,
-    which="PAS",
+    which: str = "PAS",
     total: bool = False,
     smooth_window: int = 31,
     prominence: int = 2,
-):
-    """Get PAS/TSS peaks for an isotools transcript
+) -> tuple[dict, dict, dict, dict]:
+    """Get PAS/TSS peaks for an isotools transcript.
 
     Unlike default isotools behavior, this calls all peaks without choosing a
     unified consensus for each transcript.
@@ -45,6 +49,8 @@ def get_transcript_terminal_peaks(
     :param total: Sum pileups for all samples if True, else plot samples separately
     :param smooth_window: Window size for smoothing function
     :param prominence: Minimum peak prominence to retain
+    :returns: tuple of dicts representing pileup, coordinates, smoothed pileup,
+        and peak positions
     """
     pileup, coords, smoothed, peaks = {}, {}, {}, {}
     if total:
@@ -53,7 +59,8 @@ def get_transcript_terminal_peaks(
             for pos, cov in gene.transcripts[trid][which][sample].items():
                 pileup_sum[pos] = pileup_sum.get(pos, 0) + cov
         pileup["total"], coords["total"], smoothed["total"] = pileup_to_smoothed(
-            pileup_sum, smooth_window,
+            pileup_sum,
+            smooth_window,
         )
         peaks["total"] = translate_peaks_offset(
             find_peaks(smoothed["total"], prominence=(prominence, None)),
@@ -62,7 +69,8 @@ def get_transcript_terminal_peaks(
     else:
         for sample in gene.transcripts[trid][which]:
             pileup[sample], coords[sample], smoothed[sample] = pileup_to_smoothed(
-                gene.transcripts[trid][which][sample], smooth_window,
+                gene.transcripts[trid][which][sample],
+                smooth_window,
             )
             peaks[sample] = translate_peaks_offset(
                 find_peaks(smoothed[sample], prominence=(prominence, None)),
@@ -71,15 +79,31 @@ def get_transcript_terminal_peaks(
     return (pileup, coords, smoothed, peaks)
 
 
-def assign_to_closest_peak(pos, peaks):
-    # Assumes peaks and pos have already been converted to genomic coordinates
+def assign_to_closest_peak(pos: int, peaks: list) -> tuple:
+    """Find closest peak to a given genomic coordinate.
+
+    Assumes peaks and pos have already been converted to genomic coordinates
+
+    :param pos: Genomic coordinate of position to find closest peak to
+    :param peaks: List of peak coordinates
+    :returns: Tuple of the index of the closest peak, and the genomic
+        coordinate distance between pos and the closest peak.
+    :rtype: tuple
+    """
     dist = [abs(p - pos) for p in peaks]
     closest_index = np.argmin(dist)
     return closest_index, dist[closest_index]
 
 
-def translate_peaks_offset(peaks, offset):
-    # Translate array indices back to genomic coordinates
+def translate_peaks_offset(peaks: list, offset: int) -> tuple:
+    """Translate array indices back to genomic coordinates.
+
+    :param peaks: List of peak positions in relative coordinates
+    :param offset: The offset between genomic and relative coordinates.
+    :returns: Tuple of the peak positions in genomic coords and a dict with
+        peak prominences, left_bases, and right_bases.
+    :rtype: tuple
+    """
     return (
         np.array([p + offset for p in peaks[0]]),
         {
@@ -91,13 +115,13 @@ def translate_peaks_offset(peaks, offset):
 
 
 def get_gene_terminal_peaks(
-    gene,
+    gene: Gene,
     trids: list = None,
-    which="PAS",
+    which: str = "PAS",
     smooth_window: int = 31,
     prominence: int = 2,
-):
-    """Get PAS/TSS peaks for an isotools Gene, summing across all transcripts
+) -> tuple:
+    """Get PAS/TSS peaks for an isotools Gene, summing across all transcripts.
 
     Unlike default isotools behavior, this calls all peaks without choosing a
     unified consensus for each transcript.
@@ -108,6 +132,8 @@ def get_gene_terminal_peaks(
     :param which: Either "PAS" or "TSS"
     :param smooth_window: Window size for smoothing function
     :param prominence: Minimum peak prominence to retain
+    :returns: Tuple of pileup, coords, smoothed, peaks, peak_assignments
+    :rtype: tuple
     """
     if which not in ["PAS", "TSS"]:
         raise ValueError("Option `which` must be either PAS or TSS only")
@@ -124,7 +150,8 @@ def get_gene_terminal_peaks(
                 for pos, cov in transcript[which][sample].items():
                     pileup_sum[pos] = pileup_sum.get(pos, 0) + cov
     pileup["total"], coords["total"], smoothed["total"] = pileup_to_smoothed(
-        pileup_sum, smooth_window,
+        pileup_sum,
+        smooth_window,
     )
     # peaks coordinates are indices of coords
     peaks["total"] = find_peaks(smoothed["total"], prominence=(prominence, None))
@@ -143,7 +170,8 @@ def get_gene_terminal_peaks(
             for sample in transcript[which]:
                 for pos in transcript[which][sample]:
                     closest_index, distance = assign_to_closest_peak(
-                        pos, peaks["total"][0],
+                        pos,
+                        peaks["total"][0],
                     )
                     if distance <= smooth_window:
                         peak_assignments["total"][closest_index][sample] += transcript[
@@ -152,11 +180,12 @@ def get_gene_terminal_peaks(
     return pileup, coords, smoothed, peaks, peak_assignments
 
 
-def get_gene_last_exons(gene):
-    """Get last exons for all transcripts of a gene
+def get_gene_last_exons(gene: Gene) -> dict:
+    """Get last exons for all transcripts of a gene.
 
     :param gene: isotools.Gene object
     :returns: Dict mapping transcript IDs to start positions of last exons
+    :rtype: dict
     """
     last_exons = {}
     for trid, transcript in enumerate(gene.transcripts):
@@ -178,10 +207,11 @@ def test_alternative_pas(
     min_alt_fraction: float = 0.01,  # different from Isotools default
     min_n: int = 5,
     min_sa: float = 0.51,
-    test="auto",  # either string with test name or a custom test function
+    test: str
+    | Callable = "auto",  # either string with test name or a custom test function
     **kwargs,
-):
-    """Identify and test alternative PAS within an isotools Gene
+) -> pd.DataFrame:
+    """Identify and test alternative PAS within an isotools Gene.
 
     Isotools chooses a unified PAS per transcript by default. However,
     transcripts are defined by their internal splice sites, so a single
@@ -191,8 +221,10 @@ def test_alternative_pas(
     APA between groups, without relying on a unified consensus for each
     transcript.
 
-    Output columns are same as those from isotools._transcriptome_stats.altsplice_test, except for:
-     * "last_exon_start" - start position of the last exon shared by the transcripts tested
+    Output columns are same as those from
+    isotools._transcriptome_stats.altsplice_test, except for:
+     * "last_exon_start" - start position of the last exon shared by the
+         transcripts tested
      * "trids" - list of transcript IDs tested
      * "start" - position of the first PAS peak tested
      * "end" - position of the second PAS peak tested
@@ -212,7 +244,7 @@ def test_alternative_pas(
     :param **kwargs: Additional keyword arguments passed to iter_genes
     :returns: DataFrame with test results for alternative PAS events
     """
-    groupnames, groups_arr, grp_idx = _check_groups(self, groups)
+    groupnames, groups_arr, _grp_idx = _check_groups(self, groups)
     # Choose appropriate test
     if isinstance(test, str):
         if test == "auto":
@@ -235,12 +267,14 @@ def test_alternative_pas(
         # For each last exon, get PAS peaks and test for differential usage
         trids_by_last_exon = get_gene_last_exons(gene)
         for last_exon in trids_by_last_exon:
-            pileup, coords, smoothed, peaks, peak_assignments = get_gene_terminal_peaks(
-                gene=gene,
-                trids=trids_by_last_exon[last_exon],
-                which="PAS",
-                smooth_window=smooth_window,
-                prominence=prominence,
+            _pileup, coords, smoothed, peaks, peak_assignments = (
+                get_gene_terminal_peaks(
+                    gene=gene,
+                    trids=trids_by_last_exon[last_exon],
+                    which="PAS",
+                    smooth_window=smooth_window,
+                    prominence=prominence,
+                )
             )
             # No peaks found, likely because coverage is too low
             if peaks is None:
@@ -253,7 +287,8 @@ def test_alternative_pas(
                     group_cov[i][g] = [
                         peak_assignments["total"][i][s] for s in groups[g]
                     ]
-            # Take pairwise combinations of alternative PAS and test for differential coverage
+            # Take pairwise combinations of alternative PAS and test for
+            # differential coverage
             for i, j in combinations(group_cov, 2):
                 x = [np.array(group_cov[i][g]) for g in groups]
                 n = [
@@ -276,7 +311,10 @@ def test_alternative_pas(
                 if np.isnan(pval):
                     continue
                 covs = [
-                    val for lists in zip(x, n) for pair in zip(*lists) for val in pair
+                    val
+                    for lists in zip(x, n, strict=True)
+                    for pair in zip(*lists, strict=True)
+                    for val in pair
                 ]
                 res.append(
                     [
@@ -313,12 +351,12 @@ def test_alternative_pas(
     ]
     colnames += [
         groupname + part
-        for groupname in groupnames[:2] + ["total"] + groupnames[2:]
+        for groupname in [*groupnames[:2], "total", *groupnames[2:]]
         for part in ["_PSI", "_disp"]
     ]
     colnames += [
         f"{sample}_{groupname}_{w}"
-        for groupname, group in zip(groupnames, groups_arr)
+        for groupname, group in zip(groupnames, groups_arr, strict=True)
         for sample in group
         for w in ["_in_cov", "_total_cov"]
     ]

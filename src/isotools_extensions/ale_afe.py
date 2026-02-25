@@ -1,13 +1,17 @@
 from collections import defaultdict
+from collections.abc import Callable
 from itertools import combinations
 
 import numpy as np
 import pandas as pd
 from isotools._transcriptome_stats import TESTS, _check_groups
+from isotools import Gene, SegmentGraph
 
 
-def get_exon_nodes(segment_graph, transcript, start_node=None, end_node=None):
-    """Get exon nodes for a given transcript from its isotools segment graph
+def get_exon_nodes(
+    segment_graph: SegmentGraph, transcript, start_node=None, end_node=None
+):
+    """Get exon nodes for a given transcript from its isotools segment graph.
 
     :param segment_graph: isotools.SegmentGraph object
     :param transcript: Transcript index
@@ -38,14 +42,18 @@ def get_exon_nodes(segment_graph, transcript, start_node=None, end_node=None):
             raise ValueError("Invalid exon node")
 
 
-def get_exon_coords(segment_graph, transcript: int):
-    """Get exon coordinates for a given transcript from its segment graph
+def get_exon_coords(
+    segment_graph: SegmentGraph, transcript: int
+) -> list[tuple[int, int]]:
+    """Get exon coordinates for a given transcript from its segment graph.
 
     Should give identical output to isotool's original
     SegmentGraph._get_all_exons method.
 
     :param segment_graph: isotools.SegmentGraph object
     :param transcript: Transcript index
+    :returns: list of start, end coordinates of exons
+    :rtype: list
     """
     return [
         (segment_graph[ns].start, segment_graph[ne].end)
@@ -53,8 +61,8 @@ def get_exon_coords(segment_graph, transcript: int):
     ]
 
 
-def get_ale_mono(segment_graph):
-    """Find alternative last exon (ALE) events in the segment graph (DEPRECATED)
+def get_ale_mono(segment_graph: SegmentGraph) -> tuple:
+    """Find alternative last exon (ALE) events in the segment graph (DEPRECATED).
 
     This procedure assumes that there is only a single ALE and a common splice
     site. Will overlook instances of >1 ALE spliced together. Superseded by
@@ -85,7 +93,7 @@ def get_ale_mono(segment_graph):
         ]
     # arrange by splice junctions
     last_exon_junction_dict = defaultdict(lambda: defaultdict(list))
-    for trid, pre, ns, ne in last_exon_junctions:
+    for trid, pre, ns, _ne in last_exon_junctions:
         last_exon_junction_dict[pre][ns].append(trid)
     # return all combinations of ALEs sharing the same second-to-last splice junction
     for pre in last_exon_junction_dict:
@@ -97,8 +105,8 @@ def get_ale_mono(segment_graph):
             yield (prim_set, alt_set, prim_node_ids, alt_node_ids, "ALE")
 
 
-def get_ale_afe(segment_graph, which="ALE"):
-    """Report last or first exon (ALE/AFE) events in the segment graph
+def get_ale_afe(segment_graph: SegmentGraph, which: str = "ALE") -> dict:
+    """Report last or first exon (ALE/AFE) events in the segment graph.
 
     Report potential first or last exon events from a gene's segment graph.
     Most tools for ALE/AFE consider only cases where there is only a single
@@ -114,11 +122,12 @@ def get_ale_afe(segment_graph, which="ALE"):
 
     :param segment_graph: isotools.SegmentGraph object
     :param which: Either "ALE" or "AFE"
-    :returns dict: Nested dictionary where keys of the outer dictionary are the
+    :returns: Nested dictionary where keys of the outer dictionary are the
     splice junction nodes before (ALE) or after (AFE) the alternative exons,
     and keys of the inner dictionary are tuples of exon nodes representing the
     alternative last/first exons. Values of the inner dictionary are lists of
     transcript indices supporting each alternative.
+    :rtype: dict
     """
     out = defaultdict(lambda: defaultdict(list))
     if (which == "ALE" and segment_graph.strand == "+") or (
@@ -139,7 +148,10 @@ def get_ale_afe(segment_graph, which="ALE"):
         for pre_node in pre_nodes:
             for trid in segment_graph[pre_node].suc:
                 downstream_nodes = get_exon_nodes(
-                    segment_graph, trid, start_node=pre_node, end_node=None,
+                    segment_graph,
+                    trid,
+                    start_node=pre_node,
+                    end_node=None,
                 )
                 # check that this node is at a splice junction
                 if downstream_nodes[0][0] == downstream_nodes[0][1]:
@@ -164,7 +176,10 @@ def get_ale_afe(segment_graph, which="ALE"):
         for suc_node in suc_nodes:
             for trid in segment_graph[suc_node].pre:
                 upstream_nodes = get_exon_nodes(
-                    segment_graph, trid, start_node=None, end_node=suc_node,
+                    segment_graph,
+                    trid,
+                    start_node=None,
+                    end_node=suc_node,
                 )
                 # check that this node is at a splice junction
                 if upstream_nodes[-1][0] == upstream_nodes[-1][1]:
@@ -174,8 +189,8 @@ def get_ale_afe(segment_graph, which="ALE"):
     return out
 
 
-def find_ale_afe_pairs(gene, which: str = "ALE"):
-    """Generator for ALE/AFE events similar to find_splice_bubbles
+def find_ale_afe_pairs(gene: Gene, which: str = "ALE") -> tuple:
+    """Generator for ALE/AFE events similar to find_splice_bubbles.
 
     To identify potential ALE and AFE events in a gene, we first identify all
     splice junctions immediately upstream of a terminal exon. Then, for each of
@@ -258,9 +273,11 @@ def find_ale_afe_pairs(gene, which: str = "ALE"):
 
 
 def find_ale_afe_simple_pairs(
-    gene, which="ALE", query="not FRAGMENT and not UNSPLICED",
-):
-    """Generator for ALE/AFE events, ignoring common splice junctions
+    gene: Gene,
+    which: str = "ALE",
+    query: str = "not FRAGMENT and not UNSPLICED",
+) -> tuple:
+    """Generator for ALE/AFE events, ignoring common splice junctions.
 
     "Naive" version of ALE/AFE finding that simply groups all transcripts by
     their common last/first intron, and then yields all pairwise combinations.
@@ -325,11 +342,12 @@ def test_ale_afe(
     min_alt_fraction: float = 0.01,  # different from Isotools default
     min_n: int = 5,
     min_sa: float = 0.51,
-    test="auto",  # either string with test name or a custom test function
-    pair_generator=find_ale_afe_simple_pairs,
+    test: str
+    | Callable = "auto",  # either string with test name or a custom test function
+    pair_generator: Callable = find_ale_afe_simple_pairs,
     **kwargs,
-):
-    """Test for alternative last/first exon (ALE/AFE) events
+) -> pd.DataFrame:
+    """Test for alternative last/first exon (ALE/AFE) events.
 
     Reimplementation of isotools._transcriptome_stats.altsplice_test for ALE
     and AFE events, which are not supported in the current IsoTools version
@@ -392,7 +410,8 @@ def test_ale_afe(
     for gene in self.iter_genes(**kwargs):
         for which in ["ALE", "AFE"]:
             for setA, setB, start, end, splice_type, coord in pair_generator(
-                gene, which,
+                gene,
+                which,
             ):
                 junction_cov = gene.coverage[:, setB].sum(1)
                 total_cov = gene.coverage[:, setA].sum(1) + junction_cov
@@ -413,7 +432,10 @@ def test_ale_afe(
                     continue
                 # TODO: nmdA, nmdB
                 covs = [
-                    val for lists in zip(x, n) for pair in zip(*lists) for val in pair
+                    val
+                    for lists in zip(x, n, strict=True)
+                    for pair in zip(*lists, strict=True)
+                    for val in pair
                 ]
                 res.append(
                     [
@@ -451,12 +473,12 @@ def test_ale_afe(
     ]
     colnames += [
         groupname + part
-        for groupname in groupnames[:2] + ["total"] + groupnames[2:]
+        for groupname in [*groupnames[:2], "total", *groupnames[2:]]
         for part in ["_PSI", "_disp"]
     ]
     colnames += [
         f"{sample}_{groupname}_{w}"
-        for groupname, group in zip(groupnames, groups)
+        for groupname, group in zip(groupnames, groups, strict=True)
         for sample in group
         for w in ["_in_cov", "_total_cov"]
     ]
