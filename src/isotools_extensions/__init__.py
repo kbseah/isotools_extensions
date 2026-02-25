@@ -2,17 +2,18 @@
 #
 # SPDX-License-Identifier: MIT
 
-from isotools import Transcriptome, Gene
-from .alt_pas import test_alternative_pas
+from isotools import Gene, Transcriptome
+
 from .ale_afe import test_ale_afe
+from .alt_pas import test_alternative_pas
 from .gene_plots import (
     domains_figure,
     domains_figure_altsplice_result,
-    sashimi_figure_altsplice_result,
     plot_gene_terminal_peaks,
     plot_gene_terminal_pileup,
     plot_transcript_terminal_peaks,
     plot_transcript_terminal_pileup,
+    sashimi_figure_altsplice_result,
 )
 
 # Monkeypatch

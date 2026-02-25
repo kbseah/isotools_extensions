@@ -1,6 +1,8 @@
+from collections import defaultdict
+
 import matplotlib.pyplot as plt
 import numpy as np
-from collections import defaultdict
+
 from .alt_pas import get_gene_terminal_peaks, get_transcript_terminal_peaks
 
 
@@ -45,13 +47,13 @@ def sashimi_figure_altsplice_result(
     # and reference transcripts
     transcripts_A = list(
         set(self.filter_transcripts(query=query)).intersection(
-            set(diff_splice_result.trA)
-        )
+            set(diff_splice_result.trA),
+        ),
     )
     transcripts_B = list(
         set(self.filter_transcripts(query=query)).intersection(
-            set(diff_splice_result.trB)
-        )
+            set(diff_splice_result.trB),
+        ),
     )
     transcripts_C = self.ref_transcripts
 
@@ -65,15 +67,15 @@ def sashimi_figure_altsplice_result(
     fig_width = 10
     gs_kw = dict(height_ratios=height_ratios)
     fig, axs = plt.subplots(
-        len(height_ratios), figsize=(fig_width, fig_height), gridspec_kw=gs_kw
+        len(height_ratios), figsize=(fig_width, fig_height), gridspec_kw=gs_kw,
     )
 
     # Add gene tracks for transcripts
     self.gene_track(
-        x_range=pos, ax=axs[0], reference=False, select_transcripts=transcripts_A
+        x_range=pos, ax=axs[0], reference=False, select_transcripts=transcripts_A,
     )
     self.gene_track(
-        x_range=pos, ax=axs[1], reference=False, select_transcripts=transcripts_B
+        x_range=pos, ax=axs[1], reference=False, select_transcripts=transcripts_B,
     )
     self.gene_track(
         x_range=pos,
@@ -162,10 +164,10 @@ def domains_figure(
     # Check if color array is correct length and type
     if isinstance(cov_color, list):
         assert len(cov_color) == len(
-            trids
+            trids,
         ), "cov_color must be same length as number of transcripts to plot"
         assert all(
-            [isinstance(j, str) for j in cov_color]
+            [isinstance(j, str) for j in cov_color],
         ), "cov_color must be a list of color name strings"
     # Plot parameters
     fig_height = height_factor * (len(trids) + n_ref_transcripts)
@@ -196,7 +198,7 @@ def domains_figure(
         [
             self.get_infos(trid, ["group_coverage_sum"], None, range(len(groups)))
             for trid in trids
-        ]
+        ],
     )
     # Initialize array for color strings
     cc = []
@@ -208,7 +210,7 @@ def domains_figure(
             [
                 np.zeros([n_ref_transcripts, ngroup], dtype=int),
                 arr,
-            ]
+            ],
         )
 
     yy = []
@@ -286,10 +288,10 @@ def domains_figure_altsplice_result(
     :returns: (fig, axs) tuple of matplotlib Figure and Axes objects
     """
     setA = list(
-        set(self.filter_transcripts(query)).intersection(diff_splice_result.trA)
+        set(self.filter_transcripts(query)).intersection(diff_splice_result.trA),
     )
     setB = list(
-        set(self.filter_transcripts(query)).intersection(diff_splice_result.trB)
+        set(self.filter_transcripts(query)).intersection(diff_splice_result.trB),
     )
     if len(setA) == 0 or len(setB) == 0:
         raise ValueError("Empty set after query filter")
@@ -309,7 +311,7 @@ def domains_figure_altsplice_result(
 
 
 def plot_transcript_terminal_pileup(
-    self, trid: int, which="PAS", total: bool = False, show_unified: bool = False
+    self, trid: int, which="PAS", total: bool = False, show_unified: bool = False,
 ):
     """Plot pileup of PAS or TSS for an isotools transcript
 
@@ -391,7 +393,7 @@ def plot_gene_terminal_pileup(
             ax.set_xlim(xlim)
         else:
             fig, ax = plt.subplots(
-                len(pileups), 1, figsize=(8, 1 * len(pileups)), sharex=True
+                len(pileups), 1, figsize=(8, 1 * len(pileups)), sharex=True,
             )
             for i, sample in enumerate(pileups):
                 xx = list(pileups[sample].keys())
@@ -434,7 +436,7 @@ def plot_transcript_terminal_peaks(
         prominence=prominence,
     )
     fig, ax = plt.subplots(
-        len(smoothed), 1, figsize=(8, 2 * len(smoothed)), sharex=True
+        len(smoothed), 1, figsize=(8, 2 * len(smoothed)), sharex=True,
     )
     for idx, s in enumerate(smoothed):
         myax = ax if len(smoothed) == 1 else ax[idx]
@@ -491,7 +493,7 @@ def plot_gene_terminal_peaks(
     )
     # Get set of all samples
     samples = sorted(
-        {k for s in peak_assignments["total"] for k in peak_assignments["total"][s]}
+        {k for s in peak_assignments["total"] for k in peak_assignments["total"][s]},
     )
     peaks_by_index = dict(enumerate(peaks["total"][0]))
 
@@ -509,7 +511,7 @@ def plot_gene_terminal_peaks(
 
     else:
         fig, ax = plt.subplots(
-            len(samples), 1, figsize=(8, 1 * len(samples)), sharex=True
+            len(samples), 1, figsize=(8, 1 * len(samples)), sharex=True,
         )
         for idx, s in enumerate(samples):
             myax = ax if len(samples) == 1 else ax[idx]

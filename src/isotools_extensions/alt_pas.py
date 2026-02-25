@@ -19,7 +19,7 @@ def pileup_to_smoothed(pileup, smooth_window: int = 31):
     # Add flanking buffer of 1*smooth_window to avoid smoothed max falling
     # right at the first or last position and not being found by find_peaks
     coords = range(
-        min(pileup.keys()) - smooth_window, max(pileup.keys()) + 1 + smooth_window
+        min(pileup.keys()) - smooth_window, max(pileup.keys()) + 1 + smooth_window,
     )
     pileup_arr = [pileup.get(pos, 0) for pos in coords]
     smoothed = isotools._utils.smooth(np.array(pileup_arr), smooth_window)
@@ -53,7 +53,7 @@ def get_transcript_terminal_peaks(
             for pos, cov in gene.transcripts[trid][which][sample].items():
                 pileup_sum[pos] = pileup_sum.get(pos, 0) + cov
         pileup["total"], coords["total"], smoothed["total"] = pileup_to_smoothed(
-            pileup_sum, smooth_window
+            pileup_sum, smooth_window,
         )
         peaks["total"] = translate_peaks_offset(
             find_peaks(smoothed["total"], prominence=(prominence, None)),
@@ -62,7 +62,7 @@ def get_transcript_terminal_peaks(
     else:
         for sample in gene.transcripts[trid][which]:
             pileup[sample], coords[sample], smoothed[sample] = pileup_to_smoothed(
-                gene.transcripts[trid][which][sample], smooth_window
+                gene.transcripts[trid][which][sample], smooth_window,
             )
             peaks[sample] = translate_peaks_offset(
                 find_peaks(smoothed[sample], prominence=(prominence, None)),
@@ -124,7 +124,7 @@ def get_gene_terminal_peaks(
                 for pos, cov in transcript[which][sample].items():
                     pileup_sum[pos] = pileup_sum.get(pos, 0) + cov
     pileup["total"], coords["total"], smoothed["total"] = pileup_to_smoothed(
-        pileup_sum, smooth_window
+        pileup_sum, smooth_window,
     )
     # peaks coordinates are indices of coords
     peaks["total"] = find_peaks(smoothed["total"], prominence=(prominence, None))
@@ -136,14 +136,14 @@ def get_gene_terminal_peaks(
     # the intervals overlap, see https://github.com/scipy/scipy/issues/19232
     # Assign counts to closest peaks
     peak_assignments["total"] = defaultdict(
-        lambda: defaultdict(int)
+        lambda: defaultdict(int),
     )  # peak, sample -> count
     for trid, transcript in enumerate(gene.transcripts):
         if trid in trids:
             for sample in transcript[which]:
                 for pos in transcript[which][sample]:
                     closest_index, distance = assign_to_closest_peak(
-                        pos, peaks["total"][0]
+                        pos, peaks["total"][0],
                     )
                     if distance <= smooth_window:
                         peak_assignments["total"][closest_index][sample] += transcript[
@@ -294,7 +294,7 @@ def test_alternative_pas(
                         n,
                         *list(params),
                         *covs,
-                    ]
+                    ],
                 )
     # Column names
     colnames = [

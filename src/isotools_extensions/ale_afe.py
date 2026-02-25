@@ -139,7 +139,7 @@ def get_ale_afe(segment_graph, which="ALE"):
         for pre_node in pre_nodes:
             for trid in segment_graph[pre_node].suc:
                 downstream_nodes = get_exon_nodes(
-                    segment_graph, trid, start_node=pre_node, end_node=None
+                    segment_graph, trid, start_node=pre_node, end_node=None,
                 )
                 # check that this node is at a splice junction
                 if downstream_nodes[0][0] == downstream_nodes[0][1]:
@@ -164,7 +164,7 @@ def get_ale_afe(segment_graph, which="ALE"):
         for suc_node in suc_nodes:
             for trid in segment_graph[suc_node].pre:
                 upstream_nodes = get_exon_nodes(
-                    segment_graph, trid, start_node=None, end_node=suc_node
+                    segment_graph, trid, start_node=None, end_node=suc_node,
                 )
                 # check that this node is at a splice junction
                 if upstream_nodes[-1][0] == upstream_nodes[-1][1]:
@@ -258,7 +258,7 @@ def find_ale_afe_pairs(gene, which: str = "ALE"):
 
 
 def find_ale_afe_simple_pairs(
-    gene, which="ALE", query="not FRAGMENT and not UNSPLICED"
+    gene, which="ALE", query="not FRAGMENT and not UNSPLICED",
 ):
     """Generator for ALE/AFE events, ignoring common splice junctions
 
@@ -392,7 +392,7 @@ def test_ale_afe(
     for gene in self.iter_genes(**kwargs):
         for which in ["ALE", "AFE"]:
             for setA, setB, start, end, splice_type, coord in pair_generator(
-                gene, which
+                gene, which,
             ):
                 junction_cov = gene.coverage[:, setB].sum(1)
                 total_cov = gene.coverage[:, setA].sum(1) + junction_cov
@@ -432,7 +432,7 @@ def test_ale_afe(
                         coord,
                         *list(params),
                         *covs,
-                    ]
+                    ],
                 )
     colnames = [
         "gene",
