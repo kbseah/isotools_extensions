@@ -172,12 +172,10 @@ def domains_figure(
         raise ValueError("Empty set after query filter")
     # Check if color array is correct length and type
     if isinstance(cov_color, list):
-        assert len(cov_color) == len(
-            trids,
-        ), "cov_color must be same length as number of transcripts to plot"
-        assert all(isinstance(j, str) for j in cov_color), (
-            "cov_color must be a list of color name strings"
-        )
+        if len(cov_color) != len(trids):
+            raise ValueError("cov_color length != number of transcripts to plot")
+        if not all(isinstance(j, str) for j in cov_color):
+            raise TypeError("cov_color must be a list of color name strings")
     # Plot parameters
     fig_height = height_factor * (len(trids) + n_ref_transcripts)
     fig, axs = plt.subplots(
