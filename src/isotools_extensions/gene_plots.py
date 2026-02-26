@@ -267,7 +267,6 @@ def domains_figure_altsplice_result(
     diff_splice_result,
     source: str = "hmmer",
     query: str = "FSM or SUBSTANTIAL",
-    transcript_ids=False,
     ref_transcript_ids=False,
     height_factor: float = 0.75,
     **kwargs,
@@ -287,7 +286,6 @@ def domains_figure_altsplice_result(
         "add_annotation_domains", "add_hmmer_domains" or "add_interpro_domains"
         respectively.
     :param query: Query to filter transcripts by TAGs
-    :param transcript_ids: List of transcript IDs; if False, defer to the query
     :param ref_transcript_ids: List of reference transcript ids to plot; if
         False, reference transcripts are not plotted.
     :param height_factor: Adjustment factor for figure height.
@@ -477,7 +475,6 @@ def plot_gene_terminal_peaks(
     which: str = "PAS",
     total=True,
     smooth_window: int = 31,
-    show_peaks: bool = True,
     prominence: int = 2,
 ) -> tuple:
     """Plot PAS/TSS called peaks for an isotools gene.
@@ -491,7 +488,6 @@ def plot_gene_terminal_peaks(
     :param which: Either "PAS" or "TSS"
     :param total: Sum pileups for all samples if True, else plot samples separately
     :param smooth_window: Window size for smoothing function
-    :param show_peaks: Whether to show called peaks on the plot
     :param prominence: Minimum peak prominence to retain
     """
     # TODO: Sort order of the samples in the plot
