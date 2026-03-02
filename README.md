@@ -3,7 +3,7 @@ IsoTools Extensions
 
 Extended functionality for [IsoTools2](https://github.com/HerwigLab/IsoTools2)
 package for gene transcript isoform analysis. Specifically, it implements new
-tests for alternative last/first exon usage (ALE, AFE) that is separate from
+tests for alternative last/first exon usage (ALE, AFE) that are separate from
 alternative polyadenylation site or transcription start site (PAS, TSS)
 testing. A new test for alternative polyadenylation (APA) events is also
 provided. In the original IsoTools package the available tests for PAS/TSS
