@@ -339,36 +339,48 @@ def find_ale_afe_simple_pairs(
         # e.g. 5AS, 3AS, IS, or ES event just before the same terminal exon;
         # these will be mis-called as ALE/AFE when it is actually ES event;
         # or two-exon gene, will result in mis-calling ALE as AFE or vice versa
-        if (gene.strand == "+" and which == "ALE") or (
-            gene.strand == "-" and which == "AFE"
+        exon_of_interest = (
+            -1
+            if (gene.strand == "+" and which == "ALE")
+            or (gene.strand == "-" and which == "AFE")
+            else 0
+        )
+        if any(
+            has_overlap(
+                gene.transcripts[tr_a]["exons"][exon_of_interest],
+                gene.transcripts[tr_b]["exons"][exon_of_interest],
+            )
+            for tr_b in trids_by_jn[j]
+            for tr_a in trids_by_jn[i]
         ):
-            if any(
-                has_overlap(
-                    gene.transcripts[tr_a]["exons"][-1],
-                    gene.transcripts[tr_b]["exons"][-1],
-                )
-                for tr_b in trids_by_jn[j]
-                for tr_a in trids_by_jn[i]
-            ):
-                logger.debug(
-                    "Skip combination %s / %s for gene %s", str(i), str(j), gene.id
-                )
-                continue
-        elif (gene.strand == "+" and which == "AFE") or (
-            gene.strand == "-" and which == "ALE"
+            logger.debug(
+                "First/last exon overlaps: Skip combination %s / %s for gene %s",
+                str(i),
+                str(j),
+                gene.id,
+            )
+            continue
+        if all(
+            not has_overlap(
+                (
+                    gene.transcripts[tr_a]["exons"][0][0],
+                    gene.transcripts[tr_a]["exons"][-1][1],
+                ),
+                (
+                    gene.transcripts[tr_b]["exons"][0][0],
+                    gene.transcripts[tr_b]["exons"][-1][1],
+                ),
+            )
+            for tr_b in trids_by_jn[j]
+            for tr_a in trids_by_jn[i]
         ):
-            if any(
-                has_overlap(
-                    gene.transcripts[tr_a]["exons"][0],
-                    gene.transcripts[tr_b]["exons"][0],
-                )
-                for tr_b in trids_by_jn[j]
-                for tr_a in trids_by_jn[i]
-            ):
-                logger.debug(
-                    "Skip combination %s / %s for gene %s", str(i), str(j), gene.id
-                )
-                continue
+            logger.debug(
+                "Non-overlapping isoforms: Skip combination %s / %s for gene %s",
+                str(i),
+                str(j),
+                gene.id,
+            )
+            continue
         setA, setB = trids_by_jn[i], trids_by_jn[j]
         start, end = min([*i, *j]), max([*i, *j])
         coord = ":".join([str(s) for s in i]) + "|" + ":".join([str(s) for s in j])
@@ -443,7 +455,10 @@ def test_ale_afe(
                 if total_cov[sidx].sum() < min_total:
                     continue
                 alt_fraction = junction_cov[sidx].sum() / total_cov[sidx].sum()
-                if alt_fraction < min_alt_fraction or alt_fraction > 1 - min_alt_fraction:
+                if (
+                    alt_fraction < min_alt_fraction
+                    or alt_fraction > 1 - min_alt_fraction
+                ):
                     continue
                 x = [junction_cov[grp] for grp in grp_idx]
                 n = [total_cov[grp] for grp in grp_idx]
