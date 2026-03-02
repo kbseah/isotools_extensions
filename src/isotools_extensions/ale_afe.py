@@ -1,5 +1,6 @@
 from collections import defaultdict
 from collections.abc import Callable
+from functools import partial
 from itertools import combinations
 from multiprocessing import Pool
 
@@ -375,6 +376,83 @@ def find_ale_afe_simple_pairs(
         yield (setA, setB, start, end, which, coord)
 
 
+def _test_one_gene(
+    gene: Gene,
+    grp_idx: list,
+    sidx,
+    min_total: int,
+    min_alt_fraction: float,
+    min_n: int,
+    min_sa: float,
+    test: Callable,
+    pair_generator: Callable,
+) -> list:
+    """Test one gene for ALE/AFE events.
+
+    Module-level helper function for test_ale_afe, defined here so that it can
+    be pickled by multiprocessing when running in parallel.
+
+    :param gene: isotools.Gene object
+    :param grp_idx: List of sample index arrays per group
+    :param sidx: Array of sample indices for all groups combined
+    :param min_total: Minimum total coverage
+    :param min_alt_fraction: Minimum alternative fraction
+    :param min_n: Minimum coverage per sample
+    :param min_sa: Minimum samples with sufficient coverage
+    :param test: Statistical test callable
+    :param pair_generator: Function to generate ALE/AFE pairs
+    :returns: List of result rows
+    """
+    logger.info("Gene %s", gene.id)
+    out = []
+    for which in ["ALE", "AFE"]:
+        for setA, setB, start, end, splice_type, coord in pair_generator(
+            gene,
+            which,
+        ):
+            junction_cov = gene.coverage[:, setB].sum(1)
+            total_cov = gene.coverage[:, setA].sum(1) + junction_cov
+            if total_cov[sidx].sum() < min_total:
+                continue
+            alt_fraction = junction_cov[sidx].sum() / total_cov[sidx].sum()
+            if alt_fraction < min_alt_fraction or alt_fraction > 1 - min_alt_fraction:
+                continue
+            x = [junction_cov[grp] for grp in grp_idx]
+            n = [total_cov[grp] for grp in grp_idx]
+            if sum((ni >= min_n).sum() for ni in n[:2]) < min_sa:
+                continue
+            pval, params = test(x[:2], n[:2])
+            if np.isnan(pval):
+                continue
+            # TODO: nmdA, nmdB
+            covs = [
+                val
+                for lists in zip(x, n, strict=True)
+                for pair in zip(*lists, strict=True)
+                for val in pair
+            ]
+            out.append(
+                [
+                    gene.name,
+                    gene.id,
+                    gene.chrom,
+                    gene.strand,
+                    start,
+                    end,
+                    which,
+                    pval,
+                    setA,
+                    setB,
+                    x,
+                    n,
+                    coord,
+                    *list(params),
+                    *covs,
+                ],
+            )
+    return out
+
+
 def test_ale_afe(
     self,
     groups: dict,
@@ -386,6 +464,8 @@ def test_ale_afe(
         str | Callable
     ) = "auto",  # either string with test name or a custom test function
     pair_generator: Callable = find_ale_afe_simple_pairs,
+    n_jobs: int = 1,
+    chunksize: int = 1,
     **kwargs,
 ) -> pd.DataFrame:
     """Test for alternative last/first exon (ALE/AFE) events.
@@ -422,6 +502,14 @@ def test_ale_afe(
         If "auto", selects betabinom_lr if there are at least two samples per
         group, otherwise uses proportions test.
     :param pair_generator: Function that generates pairs of ALEs/AFEs to test
+    :param n_jobs: Number of parallel worker processes. If 1 (default), no
+        parallelism is used. When n_jobs > 1 the worker function and all
+        arguments must be picklable. Must be a positive integer. Note that
+        multiprocessing adds serialization and process-startup overhead; for
+        small datasets sequential execution (n_jobs=1) may be faster.
+    :param chunksize: Number of genes to send per task to each worker process
+        (only used when n_jobs > 1). Larger values reduce inter-process
+        communication overhead but increase per-task memory use. Defaults to 1.
     :param **kwargs: Additional keyword arguments passed to iter_genes
     :returns pd.DataFrame: DataFrame with test results for all identified
         ALE/AFE events. Columns are identical with
@@ -429,57 +517,6 @@ def test_ale_afe(
         which reports SUPPA2-like coordinates for ALE/AFE events. "splice_type"
         is either "ALE" or "AFE".
     """
-
-    def _test_one_gene(gene: Gene) -> list:
-        logger.info("Gene %s", gene.id)
-        out = []
-        for which in ["ALE", "AFE"]:
-            for setA, setB, start, end, splice_type, coord in pair_generator(
-                gene,
-                which,
-            ):
-                junction_cov = gene.coverage[:, setB].sum(1)
-                total_cov = gene.coverage[:, setA].sum(1) + junction_cov
-                if total_cov[sidx].sum() < min_total:
-                    continue
-                alt_fraction = junction_cov[sidx].sum() / total_cov[sidx].sum()
-                if alt_fraction < min_alt_fraction or alt_fraction > 1 - min_alt_fraction:
-                    continue
-                x = [junction_cov[grp] for grp in grp_idx]
-                n = [total_cov[grp] for grp in grp_idx]
-                if sum((ni >= min_n).sum() for ni in n[:2]) < min_sa:
-                    continue
-                pval, params = test(x[:2], n[:2])
-                if np.isnan(pval):
-                    continue
-                # TODO: nmdA, nmdB
-                covs = [
-                    val
-                    for lists in zip(x, n, strict=True)
-                    for pair in zip(*lists, strict=True)
-                    for val in pair
-                ]
-                out.append(
-                    [
-                        gene.name,
-                        gene.id,
-                        gene.chrom,
-                        gene.strand,
-                        start,
-                        end,
-                        which,
-                        pval,
-                        setA,
-                        setB,
-                        x,
-                        n,
-                        coord,
-                        *list(params),
-                        *covs,
-                    ],
-                )
-        return out
-
     # There should be only two groups
     logger.info("Test for alternative first/last exons")
     groupnames, groups, grp_idx = _check_groups(self, groups)
@@ -499,9 +536,29 @@ def test_ale_afe(
                 raise
     if min_sa < 1:
         min_sa *= sum(len(group) for group in groups[:2])
-    res = []
-    for gene in self.iter_genes(**kwargs):
-        res.extend(_test_one_gene(gene))
+    if n_jobs < 1:
+        raise ValueError(f"n_jobs must be a positive integer, got {n_jobs}")
+
+    worker = partial(
+        _test_one_gene,
+        grp_idx=grp_idx,
+        sidx=sidx,
+        min_total=min_total,
+        min_alt_fraction=min_alt_fraction,
+        min_n=min_n,
+        min_sa=min_sa,
+        test=test,
+        pair_generator=pair_generator,
+    )
+
+    if n_jobs == 1:
+        res = []
+        for gene in self.iter_genes(**kwargs):
+            res.extend(worker(gene))
+    else:
+        with Pool(processes=n_jobs) as pool:
+            results = pool.imap_unordered(worker, self.iter_genes(**kwargs), chunksize=chunksize)
+            res = [row for gene_rows in results for row in gene_rows]
 
     colnames = [
         "gene",
