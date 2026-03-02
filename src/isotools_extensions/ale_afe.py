@@ -465,6 +465,7 @@ def test_ale_afe(
     ) = "auto",  # either string with test name or a custom test function
     pair_generator: Callable = find_ale_afe_simple_pairs,
     n_jobs: int = 1,
+    chunksize: int = 1,
     **kwargs,
 ) -> pd.DataFrame:
     """Test for alternative last/first exon (ALE/AFE) events.
@@ -503,7 +504,12 @@ def test_ale_afe(
     :param pair_generator: Function that generates pairs of ALEs/AFEs to test
     :param n_jobs: Number of parallel worker processes. If 1 (default), no
         parallelism is used. When n_jobs > 1 the worker function and all
-        arguments must be picklable. Must be a positive integer.
+        arguments must be picklable. Must be a positive integer. Note that
+        multiprocessing adds serialization and process-startup overhead; for
+        small datasets sequential execution (n_jobs=1) may be faster.
+    :param chunksize: Number of genes to send per task to each worker process
+        (only used when n_jobs > 1). Larger values reduce inter-process
+        communication overhead but increase per-task memory use. Defaults to 1.
     :param **kwargs: Additional keyword arguments passed to iter_genes
     :returns pd.DataFrame: DataFrame with test results for all identified
         ALE/AFE events. Columns are identical with
@@ -551,7 +557,7 @@ def test_ale_afe(
             res.extend(worker(gene))
     else:
         with Pool(processes=n_jobs) as pool:
-            results = pool.imap(worker, self.iter_genes(**kwargs))
+            results = pool.imap_unordered(worker, self.iter_genes(**kwargs), chunksize=chunksize)
             res = [row for gene_rows in results for row in gene_rows]
 
     colnames = [
