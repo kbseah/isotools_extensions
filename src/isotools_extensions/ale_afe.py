@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import logging
 from isotools._transcriptome_stats import TESTS, _check_groups
+from isotools._utils import has_overlap
 from isotools import Gene, SegmentGraph
 
 logger = logging.getLogger(__name__)
@@ -334,14 +335,21 @@ def find_ale_afe_simple_pairs(
         trids_by_jn[junction].append(t)
     # Take all pairwise combinations of first/last introns
     for i, j in combinations(trids_by_jn.keys(), 2):
-        # Drop the cases where the wrong splice junction is different,
-        # e.g. an exon skipping event just before the same terminal exon,
-        # will be mis-called as ALE/AFE when it is actually ES event;
+        # Drop cases where first/last exon overlap: (5AS, 3AS, and IS events)
+        # e.g. 5AS, 3AS, IS, or ES event just before the same terminal exon;
+        # these will be mis-called as ALE/AFE when it is actually ES event;
         # or two-exon gene, will result in mis-calling ALE as AFE or vice versa
         if (gene.strand == "+" and which == "ALE") or (
             gene.strand == "-" and which == "AFE"
         ):
-            if i[1] == j[1]:
+            if any(
+                has_overlap(
+                    gene.transcripts[tr_a]["exons"][-1],
+                    gene.transcripts[tr_b]["exons"][-1],
+                )
+                for tr_b in trids_by_jn[j]
+                for tr_a in trids_by_jn[i]
+            ):
                 logger.debug(
                     "Skip combination %s / %s for gene %s", str(i), str(j), gene.id
                 )
@@ -349,12 +357,18 @@ def find_ale_afe_simple_pairs(
         elif (gene.strand == "+" and which == "AFE") or (
             gene.strand == "-" and which == "ALE"
         ):
-            if i[0] == j[0]:
+            if any(
+                has_overlap(
+                    gene.transcripts[tr_a]["exons"][0],
+                    gene.transcripts[tr_b]["exons"][0],
+                )
+                for tr_b in trids_by_jn[j]
+                for tr_a in trids_by_jn[i]
+            ):
                 logger.debug(
                     "Skip combination %s / %s for gene %s", str(i), str(j), gene.id
                 )
                 continue
-        # TODO: Skip 5AS, 3AS, and IS events
         setA, setB = trids_by_jn[i], trids_by_jn[j]
         start, end = min([*i, *j]), max([*i, *j])
         coord = ":".join([str(s) for s in i]) + "|" + ":".join([str(s) for s in j])
