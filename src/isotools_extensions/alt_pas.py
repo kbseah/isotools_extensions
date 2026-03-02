@@ -207,8 +207,9 @@ def test_alternative_pas(
     min_alt_fraction: float = 0.01,  # different from Isotools default
     min_n: int = 5,
     min_sa: float = 0.51,
-    test: str
-    | Callable = "auto",  # either string with test name or a custom test function
+    test: (
+        str | Callable
+    ) = "auto",  # either string with test name or a custom test function
     **kwargs,
 ) -> pd.DataFrame:
     """Identify and test alternative PAS within an isotools Gene.
