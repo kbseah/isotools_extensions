@@ -1,13 +1,15 @@
 from collections import defaultdict
-from itertools import combinations
 from collections.abc import Callable
+from itertools import combinations
 
 import isotools._utils
 import numpy as np
 import pandas as pd
-from isotools._transcriptome_stats import TESTS, _check_groups
 from isotools import Gene
+from isotools._transcriptome_stats import TESTS, _check_groups
 from scipy.signal import find_peaks
+from scipy.stats import mannwhitneyu
+from statsmodels.stats import multitest
 
 
 def pileup_to_smoothed(pileup: dict, smooth_window: int = 31) -> tuple:
@@ -120,6 +122,7 @@ def get_gene_terminal_peaks(
     which: str = "PAS",
     smooth_window: int = 31,
     prominence: int = 2,
+    # TODO: Arguments to filter transcripts; removing unspliced is important
 ) -> tuple:
     """Get PAS/TSS peaks for an isotools Gene, summing across all transcripts.
 
@@ -180,13 +183,15 @@ def get_gene_terminal_peaks(
     return pileup, coords, smoothed, peaks, peak_assignments
 
 
-def get_gene_last_exons(gene: Gene) -> dict:
+def get_gene_last_exons(gene: Gene, **kwargs) -> dict:
     """Get last exons for all transcripts of a gene.
 
     :param gene: isotools.Gene object
+    :param **kwargs: Parameters to pass to gene.filter_transcripts()
     :returns: Dict mapping transcript IDs to start positions of last exons
     :rtype: dict
     """
+    trids = gene.filter_transcripts(**kwargs)
     last_exons = {}
     for trid, transcript in enumerate(gene.transcripts):
         last_exon_start = (
@@ -194,7 +199,8 @@ def get_gene_last_exons(gene: Gene) -> dict:
             if gene.strand == "+"
             else transcript["exons"][0][1]
         )
-        last_exons[last_exon_start] = last_exons.get(last_exon_start, []) + [trid]
+        if trid in trids:
+            last_exons[last_exon_start] = last_exons.get(last_exon_start, []) + [trid]
     return last_exons
 
 
@@ -362,3 +368,293 @@ def test_alternative_pas(
         for w in ["_in_cov", "_total_cov"]
     ]
     return pd.DataFrame(res, columns=colnames)
+
+
+def transcript_mean_3utr(transcript:dict, groups:dict):
+    """Get the mean 3'UTR length per sample group for a transcript.
+
+    :params transcript: Dict of transcript from isotools.Gene object
+    :params groups: Dict of samples keyed by group name
+    :returns: Mean 3'-UTR length for each group.
+    :rtype: dict
+    """
+    if "ORF" not in transcript:
+        print("ORF not in transcript")
+        return None
+    canonical_3utr = transcript["ORF"][2]["3'UTR"]
+    persample_3utr = {}
+    if transcript["strand"] == "+":
+        for s in transcript["PAS"]:
+            persample_3utr[s] = {
+                canonical_3utr + k - transcript["exons"][-1][1] : v
+                for k,v in transcript["PAS"][s].items()
+            }
+    elif transcript["strand"] == "-":
+        for s in transcript["PAS"]:
+            persample_3utr[s] = {
+                canonical_3utr + transcript["exons"][0][0] - k : v
+                for k,v in transcript["PAS"][s].items()
+            }
+    out = defaultdict(list)
+    for g, samples in groups.items():
+        for s in samples:
+            if s in persample_3utr:
+                out[g].extend(persample_3utr[s].items())
+    return {
+        g : sum([k*v for k,v in out[g]]) / sum([v for k,v in out[g]])
+        for g in out
+    }
+
+
+def transcript_get_3utr(transcript:dict, groups:dict) -> dict[str, dict[int|float, int]]:
+    """Get counts per 3'UTR length per sample group for a transcript.
+
+    :params transcript: Transcript dict from isotools gene object
+    :params groups: Dict of samples keyed by group
+    :returns: Dict of dicts, first key is group name, second key the 3'-UTR
+        length, values are counts of transcripts with that UTR length.
+    :rtype: dict
+    """
+    if "ORF" not in transcript:
+        raise KeyError("transcript does not have ORF")
+    canonical_3utr = transcript["ORF"][2]["3'UTR"]
+    out = defaultdict(dict)
+    persample_3utr = {}
+    if transcript["strand"] == "+":
+        for s in transcript["PAS"]:
+            persample_3utr[s] = {
+                canonical_3utr + k - transcript["exons"][-1][1] : v
+                for k,v in transcript["PAS"][s].items()
+            }
+    elif transcript["strand"] == "-":
+        for s in transcript["PAS"]:
+            persample_3utr[s] = {
+                canonical_3utr + transcript["exons"][0][0] - k : v
+                for k,v in transcript["PAS"][s].items()
+            }
+    for g, samples in groups.items():
+        for s in samples:
+            if s in persample_3utr:
+                for u, count in persample_3utr[s].items():
+                   out[g][u] = out[g].get(u, 0) + count
+    return out
+
+
+def transcript_get_lastexon_len(transcript:dict, groups:dict) -> dict[str, dict[int|float, int]]:
+    """Get counts per last exon length per group for a transcript.
+
+    :params transcript: Transcript dict from isotools gene object
+    :params groups: Dict of samples keyed by group
+    :returns: Dict of dicts, first key is group name, second key the last exon
+        length, values are counts of transcripts with that length.
+    :rtype: dict
+    """
+    out = defaultdict(dict)
+    persample_lens = {}
+    if transcript["strand"] == "+":
+        for s in transcript["PAS"]:
+            persample_lens[s] = {
+                k - transcript["exons"][-1][0] : v
+                for k,v in transcript["PAS"][s].items()
+            }
+    elif transcript["strand"] == "-":
+        for s in transcript["PAS"]:
+            persample_lens[s] = {
+                transcript["exons"][0][1] - k : v
+                for k,v in transcript["PAS"][s].items()
+            }
+    for g, samples in groups.items():
+        for s in samples:
+            if s in persample_lens:
+                for u, count in persample_lens[s].items():
+                   out[g][u] = out[g].get(u, 0) + count
+    return out
+
+
+def mean_countsdict(countsdict:dict[int|float, int]) -> tuple[float, int]:
+    """Calculate mean from a dict of counts of a numeric variable.
+
+    :returns: Arithmetic mean of the variable, and sum of counts.
+    :rtype: tuple
+    """
+    sumlen = sum(k*v for k,v in countsdict.items())
+    sumcount = sum(v for v in countsdict.values())
+    return sumlen/sumcount, sumcount
+
+
+def gene_get_3utr_len(
+    gene: isotools.gene.Gene, groups: dict, mean=True, **kwargs,
+) -> list:
+    """Compare 3'-UTR lengths between sample groups for a given gene.
+
+    ORF calling must first be performed on the transcripts. Only transcripts with
+    the 'ORF' parameter will be considered.
+
+    :param gene: isotools gene object
+    :param group: Dict of samples keyed by group
+    :param mean: Summarize mean 3'-UTR lengths? If False, report raw counts.
+    :param **kwargs: Arguments for transcripts to pass to .filter_transcripts(). The
+        filters are applied before the counts are aggregated by last exon.
+    :returns: TBD
+    """
+    tr_by_last_exon = get_gene_last_exons(gene, **kwargs)
+    # key1 last exon splice junction coordinate
+    # key2 sample group
+    # key3 3'-UTR length
+    # value number of transcripts with that length
+    utrlen_by_last_exon = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+    for le, trids in tr_by_last_exon.items():
+        for trid in trids:
+            utrlen = transcript_get_3utr(gene.transcripts[trid], groups)
+            for g, counts in utrlen.items():
+                for l, count in counts.items():
+                    utrlen_by_last_exon[le][g][l] += count
+    if not mean:
+        return utrlen_by_last_exon
+    out = []
+    for le, bygroup in utrlen_by_last_exon.items():
+        for g, countsdict in bygroup.items():
+            meanlen, sumcount = mean_countsdict(countsdict)
+            out.append(dict(zip(
+                ["gene", "last_exon_start", "group", "mean_3utr_len", "total_cov"],
+                [gene.id, le, g, meanlen, sumcount],
+                strict=True,
+            )))
+    return out
+
+
+def gene_get_lastexon_len(
+    gene: isotools.gene.Gene, groups: dict, **kwargs,
+) -> list:
+    """Compare last exon lengths between sample groups for a given gene.
+
+    Last exon length is more variable than 3'-UTR length, but this procedure
+    should be more reliable for finding differences in PAS sites between
+    groups, because it does not rely on ORF predictions, which may be
+    inaccurate for fragmentary transcripts.
+
+    :param gene: isotools gene object
+    :param groups: Dict of samples keyed by group
+    :param **kwargs: Arguments for transcripts to pass to
+        .filter_transcripts(). The filters are applied before the counts are
+        aggregated by last exon.
+    :returns: TBD
+    """
+    tr_by_last_exon = get_gene_last_exons(gene, **kwargs)
+    # key1 last exon splice junction coordinate
+    # key2 sample group
+    # key3 last exon length
+    # value number of transcripts with that length
+    lastexon_lengths = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+    for le, trids in tr_by_last_exon.items():
+        for trid in trids:
+            lastexon_len = transcript_get_lastexon_len(gene.transcripts[trid], groups)
+            # TODO check for negative length!
+            for g, counts in lastexon_len.items():
+                for l, count in counts.items():
+                    lastexon_lengths[le][g][l] += count
+    out = defaultdict(dict)
+    for le, bygroup in lastexon_lengths.items():
+        for g, countsdict in bygroup.items():
+            meanlen, sumcount = mean_countsdict(countsdict)
+            lengths = [j for k,v in countsdict.items() for j in [k]*v]
+            out[le][g] = dict(zip(
+                ["trid", "lastexon_len", "mean_lastexon_len", "total_cov"],
+                [tr_by_last_exon[le], lengths, meanlen, sumcount],
+                strict=True,
+            ))
+    return out
+
+
+def gene_test_lastexon_len(
+    gene:Gene, groups:dict, pairs:list, test:Callable=mannwhitneyu, **kwargs,
+    ) -> list[dict]:
+    """Statistically test for difference in last exon length between groups.
+
+    To find genes with potential alternative polyadenylation sites between
+    groups of samples, we test for different last exon lengths. We test last
+    exon length instead of 3'-UTR length because the latter depends on ORF
+    prediction, which may be incorrect or missing for fragmentary transcripts,
+    leading to inconsistencies and inaccurate 3'-UTR positions.
+
+    The default test applied is the Mann-Whitney U test for two independent
+    samples. This nonparametric test was chosen because we cannot assume that
+    the PAS positions are normally distributed or homoscedastic; one reason is
+    that in one sample, transcripts with a number of alternative PASs may be
+    observed (i.e., we see multiple PAS pileup peaks).
+
+    Because the test is pairwise, and there may be more than two groups of
+    interest, a list of pairs to compare should be specified. Exons where one
+    or more pairs are missing are skipped.
+
+    :param gene: Isotools2 gene object
+    :param groups: Dict of samples keyed by groups.
+    :param pairs: List of pairs of groups to compare.
+    :param test: Statistical test to apply, result must have the attributes
+        `statistic` and `pvalue`.
+    :param **kwargs: Arguments to pass to .filter_transcripts()
+    :returns: List of dict of results
+    :rtype: list
+    """
+    dd = gene_get_lastexon_len(gene, groups, **kwargs)
+    out = []
+    for le, gdict in dd.items():
+        for i,j in pairs:
+            try:
+                result = test(gdict[i]["lastexon_len"], gdict[j]["lastexon_len"])
+                out.append(dict(zip(
+                    ["gene_id","trid","lastexon_start","group1","group1_mean","group1_count","group2","group2_mean","group2_count","stat","pvalue"],
+                    [gene.id, gdict[i]["trid"], le, i, gdict[i]["mean_lastexon_len"], gdict[i]["total_cov"], j, gdict[j]["mean_lastexon_len"], gdict[j]["total_cov"], result.statistic, result.pvalue],
+                    strict=True,
+                )))
+            except KeyError:
+                pass
+    return out
+
+
+def test_diff_lastexon_len(
+    self, groups:dict, pairs:list, alpha:float=0.05, method:str="fdr_bh", **kwargs,
+) -> pd.DataFrame:
+    """Test for differential last exon length.
+
+    Unlike test_alternative_pas, this function does not attempt to call PAS
+    peaks but simply tests for significant difference in the last exon lengths
+    between groups for transcripts of a given gene that share the same last
+    exon.
+
+    We use last exon length as metric instead of 3'-UTR length because CDS
+    annotations can be inconsistent or incorrect when the transcripts are
+    fragmentary, as is often the case with long read data.
+
+    :param self: isotools.Transcriptome object
+    :param groups: Dict of samples by group name
+    :param pairs: Pairs of groups to be compared (should be a list of tuples;
+        do not use an itertools.combinations without first converting to list)
+    :param alpha: P-value threshold after adjustment for multiple comparisons.
+    :param method: Method for p-value adjustment, passed to
+        multitest.multipletests
+    :param **kwargs: Filter arguments to be passed to gene.filter_transcripts()
+    :returns: DataFrame with comparison of mean last exon lengths between
+        groups for each gene and group of transcripts, with significance
+        testing of difference.
+    :rtype: pd.DataFrame
+    """
+    out = []
+    for gene in self.iter_genes():
+        out.extend(
+            gene_test_lastexon_len(
+                gene,
+                groups,
+                pairs,
+                test=mannwhitneyu,
+                **kwargs,
+            ),
+        )
+    df = pd.DataFrame(out)
+    _mr, padj, _acsidak, _acbonf = multitest.multipletests(
+        df["pvalue"], alpha=alpha, method=method,
+    )
+    df["padj"] = padj
+    df["diff_mean"] = df["group1_mean"] - df["group2_mean"]
+    df["diff_sign"] = df["diff_mean"] > 0
+    return df
