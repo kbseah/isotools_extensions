@@ -1,20 +1,19 @@
+import logging
 from collections import defaultdict
 from collections.abc import Callable
 from itertools import combinations
-from multiprocessing import Pool
 
 import numpy as np
 import pandas as pd
-import logging
+from isotools import Gene, SegmentGraph
 from isotools._transcriptome_stats import TESTS, _check_groups
 from isotools._utils import has_overlap
-from isotools import Gene, SegmentGraph
 
 logger = logging.getLogger(__name__)
 
 
 def get_exon_nodes(
-    segment_graph: SegmentGraph, transcript: int, start_node=None, end_node=None
+    segment_graph: SegmentGraph, transcript: int, start_node=None, end_node=None,
 ):
     """Get exon nodes for a given transcript from its isotools segment graph.
 
@@ -48,7 +47,7 @@ def get_exon_nodes(
 
 
 def get_exon_coords(
-    segment_graph: SegmentGraph, transcript: int
+    segment_graph: SegmentGraph, transcript: int,
 ) -> list[tuple[int, int]]:
     """Get exon coordinates for a given transcript from its segment graph.
 

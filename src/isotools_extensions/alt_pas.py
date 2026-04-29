@@ -370,7 +370,7 @@ def test_alternative_pas(
     return pd.DataFrame(res, columns=colnames)
 
 
-def transcript_mean_3utr(transcript:dict, groups:dict):
+def transcript_mean_3utr(transcript: dict, groups: dict):
     """Get the mean 3'UTR length per sample group for a transcript.
 
     :params transcript: Dict of transcript from isotools.Gene object
@@ -386,14 +386,14 @@ def transcript_mean_3utr(transcript:dict, groups:dict):
     if transcript["strand"] == "+":
         for s in transcript["PAS"]:
             persample_3utr[s] = {
-                canonical_3utr + k - transcript["exons"][-1][1] : v
-                for k,v in transcript["PAS"][s].items()
+                canonical_3utr + k - transcript["exons"][-1][1]: v
+                for k, v in transcript["PAS"][s].items()
             }
     elif transcript["strand"] == "-":
         for s in transcript["PAS"]:
             persample_3utr[s] = {
-                canonical_3utr + transcript["exons"][0][0] - k : v
-                for k,v in transcript["PAS"][s].items()
+                canonical_3utr + transcript["exons"][0][0] - k: v
+                for k, v in transcript["PAS"][s].items()
             }
     out = defaultdict(list)
     for g, samples in groups.items():
@@ -401,12 +401,13 @@ def transcript_mean_3utr(transcript:dict, groups:dict):
             if s in persample_3utr:
                 out[g].extend(persample_3utr[s].items())
     return {
-        g : sum([k*v for k,v in out[g]]) / sum([v for k,v in out[g]])
-        for g in out
+        g: sum([k * v for k, v in out[g]]) / sum([v for k, v in out[g]]) for g in out
     }
 
 
-def transcript_get_3utr(transcript:dict, groups:dict) -> dict[str, dict[int|float, int]]:
+def transcript_get_3utr(
+    transcript: dict, groups: dict,
+) -> dict[str, dict[int | float, int]]:
     """Get counts per 3'UTR length per sample group for a transcript.
 
     :params transcript: Transcript dict from isotools gene object
@@ -423,24 +424,26 @@ def transcript_get_3utr(transcript:dict, groups:dict) -> dict[str, dict[int|floa
     if transcript["strand"] == "+":
         for s in transcript["PAS"]:
             persample_3utr[s] = {
-                canonical_3utr + k - transcript["exons"][-1][1] : v
-                for k,v in transcript["PAS"][s].items()
+                canonical_3utr + k - transcript["exons"][-1][1]: v
+                for k, v in transcript["PAS"][s].items()
             }
     elif transcript["strand"] == "-":
         for s in transcript["PAS"]:
             persample_3utr[s] = {
-                canonical_3utr + transcript["exons"][0][0] - k : v
-                for k,v in transcript["PAS"][s].items()
+                canonical_3utr + transcript["exons"][0][0] - k: v
+                for k, v in transcript["PAS"][s].items()
             }
     for g, samples in groups.items():
         for s in samples:
             if s in persample_3utr:
                 for u, count in persample_3utr[s].items():
-                   out[g][u] = out[g].get(u, 0) + count
+                    out[g][u] = out[g].get(u, 0) + count
     return out
 
 
-def transcript_get_lastexon_len(transcript:dict, groups:dict) -> dict[str, dict[int|float, int]]:
+def transcript_get_lastexon_len(
+    transcript: dict, groups: dict,
+) -> dict[str, dict[int | float, int]]:
     """Get counts per last exon length per group for a transcript.
 
     :params transcript: Transcript dict from isotools gene object
@@ -454,36 +457,39 @@ def transcript_get_lastexon_len(transcript:dict, groups:dict) -> dict[str, dict[
     if transcript["strand"] == "+":
         for s in transcript["PAS"]:
             persample_lens[s] = {
-                k - transcript["exons"][-1][0] : v
-                for k,v in transcript["PAS"][s].items()
+                k - transcript["exons"][-1][0]: v
+                for k, v in transcript["PAS"][s].items()
             }
     elif transcript["strand"] == "-":
         for s in transcript["PAS"]:
             persample_lens[s] = {
-                transcript["exons"][0][1] - k : v
-                for k,v in transcript["PAS"][s].items()
+                transcript["exons"][0][1] - k: v
+                for k, v in transcript["PAS"][s].items()
             }
     for g, samples in groups.items():
         for s in samples:
             if s in persample_lens:
                 for u, count in persample_lens[s].items():
-                   out[g][u] = out[g].get(u, 0) + count
+                    out[g][u] = out[g].get(u, 0) + count
     return out
 
 
-def mean_countsdict(countsdict:dict[int|float, int]) -> tuple[float, int]:
+def mean_countsdict(countsdict: dict[int | float, int]) -> tuple[float, int]:
     """Calculate mean from a dict of counts of a numeric variable.
 
     :returns: Arithmetic mean of the variable, and sum of counts.
     :rtype: tuple
     """
-    sumlen = sum(k*v for k,v in countsdict.items())
+    sumlen = sum(k * v for k, v in countsdict.items())
     sumcount = sum(v for v in countsdict.values())
-    return sumlen/sumcount, sumcount
+    return sumlen / sumcount, sumcount
 
 
 def gene_get_3utr_len(
-    gene: isotools.gene.Gene, groups: dict, mean=True, **kwargs,
+    gene: isotools.gene.Gene,
+    groups: dict,
+    mean=True,
+    **kwargs,
 ) -> list:
     """Compare 3'-UTR lengths between sample groups for a given gene.
 
@@ -515,16 +521,28 @@ def gene_get_3utr_len(
     for le, bygroup in utrlen_by_last_exon.items():
         for g, countsdict in bygroup.items():
             meanlen, sumcount = mean_countsdict(countsdict)
-            out.append(dict(zip(
-                ["gene", "last_exon_start", "group", "mean_3utr_len", "total_cov"],
-                [gene.id, le, g, meanlen, sumcount],
-                strict=True,
-            )))
+            out.append(
+                dict(
+                    zip(
+                        [
+                            "gene",
+                            "last_exon_start",
+                            "group",
+                            "mean_3utr_len",
+                            "total_cov",
+                        ],
+                        [gene.id, le, g, meanlen, sumcount],
+                        strict=True,
+                    ),
+                ),
+            )
     return out
 
 
 def gene_get_lastexon_len(
-    gene: isotools.gene.Gene, groups: dict, **kwargs,
+    gene: isotools.gene.Gene,
+    groups: dict,
+    **kwargs,
 ) -> list:
     """Compare last exon lengths between sample groups for a given gene.
 
@@ -557,18 +575,24 @@ def gene_get_lastexon_len(
     for le, bygroup in lastexon_lengths.items():
         for g, countsdict in bygroup.items():
             meanlen, sumcount = mean_countsdict(countsdict)
-            lengths = [j for k,v in countsdict.items() for j in [k]*v]
-            out[le][g] = dict(zip(
-                ["trid", "lastexon_len", "mean_lastexon_len", "total_cov"],
-                [tr_by_last_exon[le], lengths, meanlen, sumcount],
-                strict=True,
-            ))
+            lengths = [j for k, v in countsdict.items() for j in [k] * v]
+            out[le][g] = dict(
+                zip(
+                    ["trid", "lastexon_len", "mean_lastexon_len", "total_cov"],
+                    [tr_by_last_exon[le], lengths, meanlen, sumcount],
+                    strict=True,
+                ),
+            )
     return out
 
 
 def gene_test_lastexon_len(
-    gene:Gene, groups:dict, pairs:list, test:Callable=mannwhitneyu, **kwargs,
-    ) -> list[dict]:
+    gene: Gene,
+    groups: dict,
+    pairs: list,
+    test: Callable = mannwhitneyu,
+    **kwargs,
+) -> list[dict]:
     """Statistically test for difference in last exon length between groups.
 
     To find genes with potential alternative polyadenylation sites between
@@ -599,21 +623,54 @@ def gene_test_lastexon_len(
     dd = gene_get_lastexon_len(gene, groups, **kwargs)
     out = []
     for le, gdict in dd.items():
-        for i,j in pairs:
+        for i, j in pairs:
             try:
                 result = test(gdict[i]["lastexon_len"], gdict[j]["lastexon_len"])
-                out.append(dict(zip(
-                    ["gene_id","trid","lastexon_start","group1","group1_mean","group1_count","group2","group2_mean","group2_count","stat","pvalue"],
-                    [gene.id, gdict[i]["trid"], le, i, gdict[i]["mean_lastexon_len"], gdict[i]["total_cov"], j, gdict[j]["mean_lastexon_len"], gdict[j]["total_cov"], result.statistic, result.pvalue],
-                    strict=True,
-                )))
+                out.append(
+                    dict(
+                        zip(
+                            [
+                                "gene_id",
+                                "trid",
+                                "lastexon_start",
+                                "group1",
+                                "group1_mean",
+                                "group1_count",
+                                "group2",
+                                "group2_mean",
+                                "group2_count",
+                                "stat",
+                                "pvalue",
+                            ],
+                            [
+                                gene.id,
+                                gdict[i]["trid"],
+                                le,
+                                i,
+                                gdict[i]["mean_lastexon_len"],
+                                gdict[i]["total_cov"],
+                                j,
+                                gdict[j]["mean_lastexon_len"],
+                                gdict[j]["total_cov"],
+                                result.statistic,
+                                result.pvalue,
+                            ],
+                            strict=True,
+                        ),
+                    ),
+                )
             except KeyError:
                 pass
     return out
 
 
 def test_diff_lastexon_len(
-    self, groups:dict, pairs:list, alpha:float=0.05, method:str="fdr_bh", **kwargs,
+    self,
+    groups: dict,
+    pairs: list,
+    alpha: float = 0.05,
+    method: str = "fdr_bh",
+    **kwargs,
 ) -> pd.DataFrame:
     """Test for differential last exon length.
 
@@ -652,7 +709,9 @@ def test_diff_lastexon_len(
         )
     df = pd.DataFrame(out)
     _mr, padj, _acsidak, _acbonf = multitest.multipletests(
-        df["pvalue"], alpha=alpha, method=method,
+        df["pvalue"],
+        alpha=alpha,
+        method=method,
     )
     df["padj"] = padj
     df["diff_mean"] = df["group1_mean"] - df["group2_mean"]

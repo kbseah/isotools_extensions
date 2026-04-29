@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from isotools import Gene
+
 from .alt_pas import get_gene_terminal_peaks, get_transcript_terminal_peaks
 
 
