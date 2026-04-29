@@ -13,7 +13,10 @@ logger = logging.getLogger(__name__)
 
 
 def get_exon_nodes(
-    segment_graph: SegmentGraph, transcript: int, start_node=None, end_node=None,
+    segment_graph: SegmentGraph,
+    transcript: int,
+    start_node=None,
+    end_node=None,
 ):
     """Get exon nodes for a given transcript from its isotools segment graph.
 
@@ -47,7 +50,8 @@ def get_exon_nodes(
 
 
 def get_exon_coords(
-    segment_graph: SegmentGraph, transcript: int,
+    segment_graph: SegmentGraph,
+    transcript: int,
 ) -> list[tuple[int, int]]:
     """Get exon coordinates for a given transcript from its segment graph.
 

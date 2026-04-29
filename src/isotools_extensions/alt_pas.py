@@ -2,11 +2,11 @@ from collections import defaultdict
 from collections.abc import Callable
 from itertools import combinations
 
-import isotools._utils
 import numpy as np
 import pandas as pd
 from isotools import Gene
 from isotools._transcriptome_stats import TESTS, _check_groups
+from isotools._utils import smooth
 from scipy.signal import find_peaks
 from scipy.stats import mannwhitneyu
 from statsmodels.stats import multitest
@@ -28,7 +28,7 @@ def pileup_to_smoothed(pileup: dict, smooth_window: int = 31) -> tuple:
         max(pileup.keys()) + 1 + smooth_window,
     )
     pileup_arr = [pileup.get(pos, 0) for pos in coords]
-    smoothed = isotools._utils.smooth(np.array(pileup_arr), smooth_window)
+    smoothed = smooth(np.array(pileup_arr), smooth_window)
     return (pileup_arr, coords, smoothed)
 
 
@@ -218,7 +218,7 @@ def test_alternative_pas(
     ) = "auto",  # either string with test name or a custom test function
     **kwargs,
 ) -> pd.DataFrame:
-    """Identify and test alternative PAS within an isotools Gene.
+    """Identify and test alternative PAS within genes of a Transcriptome.
 
     Isotools chooses a unified PAS per transcript by default. However,
     transcripts are defined by their internal splice sites, so a single
@@ -274,7 +274,7 @@ def test_alternative_pas(
         # For each last exon, get PAS peaks and test for differential usage
         trids_by_last_exon = get_gene_last_exons(gene)
         for last_exon in trids_by_last_exon:
-            _pileup, coords, smoothed, peaks, peak_assignments = (
+            _pileup, _coords, _smoothed, peaks, peak_assignments = (
                 get_gene_terminal_peaks(
                     gene=gene,
                     trids=trids_by_last_exon[last_exon],
@@ -290,10 +290,8 @@ def test_alternative_pas(
             # Count coverage per PAS peak per group/sample
             group_cov = defaultdict(lambda: defaultdict(int))  # pas, group -> [cov]
             for i in peak_assignments["total"]:
-                for g in groups:
-                    group_cov[i][g] = [
-                        peak_assignments["total"][i][s] for s in groups[g]
-                    ]
+                for g, samples in groups.items():
+                    group_cov[i][g] = [peak_assignments["total"][i][s] for s in samples]
             # Take pairwise combinations of alternative PAS and test for
             # differential coverage
             for i, j in combinations(group_cov, 2):
@@ -370,7 +368,7 @@ def test_alternative_pas(
     return pd.DataFrame(res, columns=colnames)
 
 
-def transcript_mean_3utr(transcript: dict, groups: dict):
+def transcript_mean_3utr(transcript: dict, groups: dict) -> dict:
     """Get the mean 3'UTR length per sample group for a transcript.
 
     :params transcript: Dict of transcript from isotools.Gene object
@@ -406,7 +404,8 @@ def transcript_mean_3utr(transcript: dict, groups: dict):
 
 
 def transcript_get_3utr(
-    transcript: dict, groups: dict,
+    transcript: dict,
+    groups: dict,
 ) -> dict[str, dict[int | float, int]]:
     """Get counts per 3'UTR length per sample group for a transcript.
 
@@ -442,7 +441,8 @@ def transcript_get_3utr(
 
 
 def transcript_get_lastexon_len(
-    transcript: dict, groups: dict,
+    transcript: dict,
+    groups: dict,
 ) -> dict[str, dict[int | float, int]]:
     """Get counts per last exon length per group for a transcript.
 
@@ -486,9 +486,9 @@ def mean_countsdict(countsdict: dict[int | float, int]) -> tuple[float, int]:
 
 
 def gene_get_3utr_len(
-    gene: isotools.gene.Gene,
+    gene: Gene,
     groups: dict,
-    mean=True,
+    mean: bool = True,
     **kwargs,
 ) -> list:
     """Compare 3'-UTR lengths between sample groups for a given gene.
@@ -496,7 +496,7 @@ def gene_get_3utr_len(
     ORF calling must first be performed on the transcripts. Only transcripts with
     the 'ORF' parameter will be considered.
 
-    :param gene: isotools gene object
+    :param gene: isotools Gene object
     :param group: Dict of samples keyed by group
     :param mean: Summarize mean 3'-UTR lengths? If False, report raw counts.
     :param **kwargs: Arguments for transcripts to pass to .filter_transcripts(). The
@@ -540,7 +540,7 @@ def gene_get_3utr_len(
 
 
 def gene_get_lastexon_len(
-    gene: isotools.gene.Gene,
+    gene: Gene,
     groups: dict,
     **kwargs,
 ) -> list:
@@ -551,7 +551,7 @@ def gene_get_lastexon_len(
     groups, because it does not rely on ORF predictions, which may be
     inaccurate for fragmentary transcripts.
 
-    :param gene: isotools gene object
+    :param gene: isotools Gene object
     :param groups: Dict of samples keyed by group
     :param **kwargs: Arguments for transcripts to pass to
         .filter_transcripts(). The filters are applied before the counts are

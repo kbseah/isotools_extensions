@@ -13,8 +13,8 @@ def sashimi_figure_altsplice_result(
     groups: dict,
     diff_splice_result: tuple | pd.Series,
     flank: int = 2000,
-    start=None,
-    end=None,
+    start: int | None = None,
+    end: int | None = None,
     query: str = "(FSM or not (RTTS or INTERNAL_PRIMING or FRAGMENT)) and SUBSTANTIAL",
 ) -> tuple:
     """Sashimi plot and gene tracks figure for isoforms involved in a single
@@ -96,9 +96,9 @@ def sashimi_figure_altsplice_result(
     ax_idx = 3
 
     # Add sashimi plot zoomed in on AS event
-    for group in groups:
+    for group, samples in groups.items():
         self.sashimi_plot(
-            samples=groups[group],
+            samples=samples,
             x_range=pos,
             ax=axs[ax_idx],
             title=group,
@@ -472,9 +472,9 @@ def plot_transcript_terminal_peaks(
 
 def plot_gene_terminal_peaks(
     self: Gene,
-    trids: list = None,
+    trids: list | None = None,
     which: str = "PAS",
-    total=True,
+    total: bool = True,
     smooth_window: int = 31,
     prominence: int = 2,
 ) -> tuple:
