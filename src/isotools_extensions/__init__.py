@@ -6,6 +6,7 @@ from isotools import Gene, Transcriptome
 
 from .ale_afe import test_ale_afe
 from .alt_pas import test_alternative_pas, test_diff_lastexon_len
+from .domains import add_hmmer_domains_parallel
 from .gene_plots import (
     domains_figure,
     domains_figure_altsplice_result,
@@ -20,6 +21,7 @@ from .gene_plots import (
 Transcriptome.test_alternative_pas = test_alternative_pas
 Transcriptome.test_ale_afe = test_ale_afe
 Transcriptome.test_diff_lastexon_len = test_diff_lastexon_len
+Transcriptome.add_hmmer_domains_parallel = add_hmmer_domains_parallel
 Gene.domains_figure = domains_figure
 Gene.domains_figure_altsplice_result = domains_figure_altsplice_result
 Gene.sashimi_figure_altsplice_result = sashimi_figure_altsplice_result
