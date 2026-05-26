@@ -36,6 +36,11 @@ Extended functions are monkeypatched to `isotools.Gene` and
 
  * `Transcriptome.test_alternative_pas` -- Test alternative PAS events
  * `Transcriptome.test_ale_afe` -- Test ALE/AFE events
+ * `Transcriptome.test_diff_lastexon_len` -- Test mean last exon length
+       difference, as a different way to test for alternative polyadenylation
+       than the pairwise APA tests.
+ * `Transcriptome.add_hmmer_domains_parallel` -- Parallelized version of
+       `add_hmmer_domains` to speed up HMMer alignment.
  * `Gene.domains_figure` -- Plot exons with annotated domains and coverage in
        one figure
  * `Gene.domains_figure_altsplice_result` -- Plot exons with annotated domains
