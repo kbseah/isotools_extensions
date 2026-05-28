@@ -297,6 +297,7 @@ def domains_figure(
 
 def domains_figure_altsplice_result(
     self: Gene,
+    transcriptome: Transcriptome,
     groups: dict,
     diff_splice_result,
     source: str = "hmmer",
@@ -306,11 +307,12 @@ def domains_figure_altsplice_result(
     **kwargs,
 ) -> tuple:
     """Generate figure of domains alongside coverage scatterplot, contrasting
-    transcripts involved in AS event
+    transcripts involved in AS event.
 
     Refer to isotools.Gene.domains_figure documentation for details
 
     :param self: isotools.Gene object
+    :param transcriptome: isotools.Transcriptome parent of the gene object
     :param groups: Transcriptome's dict of groups
     :param diff_splice_result: Single AS result from the differential splicing
         analysis results table, either as tuple generated from .itertuples()
@@ -336,6 +338,7 @@ def domains_figure_altsplice_result(
         raise ValueError("Empty set after query filter")
     cov_color = ["darkblue"] * len(setA) + ["darkred"] * len(setB)
     fig, axs = self.domains_figure(
+        transcriptome=transcriptome,
         groups=groups,
         source=source,
         query=query,
