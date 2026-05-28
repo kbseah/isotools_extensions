@@ -3,7 +3,7 @@ from collections import defaultdict
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from isotools import Gene
+from isotools import Gene, Transcriptome
 
 from .alt_pas import get_gene_terminal_peaks, get_transcript_terminal_peaks
 
@@ -119,8 +119,38 @@ def sashimi_figure_altsplice_result(
     return (fig, axs)
 
 
+def coverage_by_group(
+    gene: Gene,
+    transcriptome: Transcriptome,
+    groups: dict | None,
+    trids: list | None = None,
+) -> dict:
+    """Sum coverage per transcript per group.
+
+    :param gene: isotools.Gene
+    :param transcriptome: isotools.Transcriptome object from which Gene is derived.
+    :param groups: Groups of samples, as a dict with group names as keys and
+        lists of samples per group as values. May differ from the pre-defined
+        transcriptome.groups(). If None, transcriptome.groups() is used instead.
+    :param trids: List of transcript IDs of interest. If None, all transcripts.
+    :returns: Arrays of coverage for transcripts of interest, keyed by group.
+    :rtype: dict
+    """
+    group_sums = {}
+    if trids is None:
+        trids = list(range(gene.coverage.shape[1]))
+    if groups is None:
+        groups = transcriptome.groups()
+    sample2idx = {sample: idx for idx, sample in enumerate(transcriptome.samples)}
+    for group, group_samples in groups.items():
+        idxs = [sample2idx[s] for s in group_samples]
+        group_sums[group] = gene.coverage[idxs, :][:, trids].sum(axis=0)
+    return group_sums
+
+
 def domains_figure(
     self: Gene,
+    transcriptome: Transcriptome,
     groups: dict,
     source: str = "hmmer",
     query: str = "FSM or SUBSTANTIAL",
@@ -131,14 +161,17 @@ def domains_figure(
     height_factor: float = 0.75,
     **kwargs,
 ) -> tuple:
-    """Generate figure of domains alongside scatterplot of coverage per group
+    """Generate figure of domains alongside scatterplot of coverage per group.
 
     The domains plot will be plotted alongside a scatterplot where size of plot
     elements is proportional to the reads coverage of the given transcript per
     sample. SQANTI categories of each transcript is also indicated.
 
     :param self: isotools.Gene object
-    :param groups: Transcriptome's dict of groups
+    :param transcriptome: isotools.Transcriptome parent of the gene object
+    :param groups: Groups of samples to compare; as a dict with group names as
+        keys and lists of sample names as values. Sample names should
+        correspond to sample names found in transcriptome.samples.
     :param source: Source of protein domains, e.g. "annotation", "hmmer" or
         "interpro", for domains added by the functions
         "add_annotation_domains", "add_hmmer_domains" or "add_interpro_domains"
@@ -200,14 +233,14 @@ def domains_figure(
         **kwargs,
     )
     axs[0].set_title("domains")
+
     # Coverage per isoform per group, as scatter plot blobs
     # transpose: rows represent transcripts
-    arr = np.array(
-        [
-            self.get_infos(trid, ["group_coverage_sum"], None, range(len(groups)))
-            for trid in trids
-        ],
+    group_covs = coverage_by_group(
+        self, transcriptome=transcriptome, groups=groups, trids=trids
     )
+    arr = np.array([group_covs[group] for group in groups]).T
+
     # Initialize array for color strings
     cc = []
     # if reference transcripts, add blanks
