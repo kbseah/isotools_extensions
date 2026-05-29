@@ -2,9 +2,9 @@
 
 Main functions are:
 * `ale_psi_by_group`: Test alternative last exon APA (ALE-APA).
-* `ale_psi_by_group_one_exon`: Test tandem 3'-UTR APA for a single exon in a
+* `apa_psi_by_group_one_exon`: Test tandem 3'-UTR APA for a single exon in a
     gene of interest (TUTR-APA).
-* `ale_psi_by_group`: Applies TUTR-APA test to all last exons for a given gene.
+* `apa_psi_by_group`: Applies TUTR-APA test to all last exons for a given gene.
 """
 
 import logging
