@@ -200,7 +200,7 @@ def get_gene_last_exons(gene: Gene, **kwargs) -> dict:
             else transcript["exons"][0][1]
         )
         if trid in trids:
-            last_exons[last_exon_start] = [last_exons.get(last_exon_start, []), trid]
+            last_exons[last_exon_start] = [*last_exons.get(last_exon_start, []), trid]
     return last_exons
 
 
