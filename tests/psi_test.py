@@ -10,6 +10,7 @@ from isotools_extensions.psi_test import (
 
 class TestGeneCoverageSumSamplewise(unittest.TestCase):
     def setUp(self):
+        """Set up common data objects."""
         self.coverage = np.array(
             [
                 [1, 2, 3],
@@ -24,6 +25,7 @@ class TestGeneCoverageSumSamplewise(unittest.TestCase):
         }
 
     def test_basic_functionality(self):
+        """Test basic functionality."""
         expected_counts = np.array(
             [
                 [5, 7, 9],  # Sum of rows 0 and 1
@@ -37,6 +39,7 @@ class TestGeneCoverageSumSamplewise(unittest.TestCase):
         self.assertEqual(keys, expected_keys)
 
     def test_descending_order(self):
+        """Test with samples sorted in descending order."""
         expected_counts_desc = np.array(
             [
                 [17, 19, 21],  # Sum of rows 2 and 3
@@ -46,20 +49,25 @@ class TestGeneCoverageSumSamplewise(unittest.TestCase):
         expected_keys_desc = ["group2", "group1"]
 
         counts_desc, keys_desc = gene_coverage_sum_samplewise(
-            self.coverage, self.sample_groups, sort_descending=True,
+            self.coverage,
+            self.sample_groups,
+            sort_descending=True,
         )
         np.testing.assert_array_equal(counts_desc, expected_counts_desc)
         self.assertEqual(keys_desc, expected_keys_desc)
 
     def test_empty_sample_groups(self):
+        """Test with empty group."""
         sample_groups_empty = {}
         counts_empty, keys_empty = gene_coverage_sum_samplewise(
-            self.coverage, sample_groups_empty,
+            self.coverage,
+            sample_groups_empty,
         )
         self.assertEqual(np.size(counts_empty), 0)
         self.assertEqual(np.size(keys_empty), 0)
 
     def test_single_group_all_samples(self):
+        """Test with single group that contains all samples."""
         sample_groups_all = {"all": [0, 1, 2, 3]}
         expected_counts_all = np.array(
             [
@@ -69,12 +77,14 @@ class TestGeneCoverageSumSamplewise(unittest.TestCase):
         expected_keys_all = ["all"]
 
         counts_all, keys_all = gene_coverage_sum_samplewise(
-            self.coverage, sample_groups_all,
+            self.coverage,
+            sample_groups_all,
         )
         np.testing.assert_array_equal(counts_all, expected_counts_all)
         self.assertEqual(keys_all, expected_keys_all)
 
     def test_non_overlapping_groups(self):
+        """Test with non-overlapping groups."""
         sample_groups_nonoverlap = {
             "group1": [0],
             "group2": [1],
@@ -92,12 +102,14 @@ class TestGeneCoverageSumSamplewise(unittest.TestCase):
         expected_keys_nonoverlap = ["group1", "group2", "group3", "group4"]
 
         counts_nonoverlap, keys_nonoverlap = gene_coverage_sum_samplewise(
-            self.coverage, sample_groups_nonoverlap,
+            self.coverage,
+            sample_groups_nonoverlap,
         )
         np.testing.assert_array_equal(counts_nonoverlap, expected_counts_nonoverlap)
         self.assertEqual(keys_nonoverlap, expected_keys_nonoverlap)
 
     def test_invalid_sample_index(self):
+        """Test with invalid sample index."""
         sample_groups_invalid = {
             "group1": [0, 1],
             "group2": [2, 4],  # Index 4 is out of bounds
@@ -108,7 +120,7 @@ class TestGeneCoverageSumSamplewise(unittest.TestCase):
 
 class TestGeneCoverageSumTranscriptwise(unittest.TestCase):
     def setUp(self):
-        # Set up common data for the tests
+        """Set up common data for the tests."""
         self.coverage = np.array(
             [
                 [1, 2, 3, 4],  # Sample 1
@@ -122,7 +134,7 @@ class TestGeneCoverageSumTranscriptwise(unittest.TestCase):
         }
 
     def test_basic_functionality(self):
-        # Test basic functionality with ascending order
+        """Test basic functionality with ascending order."""
         expected_counts = np.array(
             [
                 [3, 7],  # Sample 1: group1 = 1+2, group2 = 3+4
@@ -132,13 +144,14 @@ class TestGeneCoverageSumTranscriptwise(unittest.TestCase):
         )
         expected_keys = ["group1", "group2"]
         counts, keys = gene_coverage_sum_transcriptwise(
-            self.coverage, self.transcript_groups,
+            self.coverage,
+            self.transcript_groups,
         )
         np.testing.assert_array_equal(counts, expected_counts)
         self.assertEqual(keys, expected_keys)
 
     def test_sort_descending(self):
-        # Test functionality with descending order
+        """Test functionality with descending order."""
         expected_counts = np.array(
             [
                 [7, 3],  # Sample 1: group2 = 3+4, group1 = 1+2
@@ -148,33 +161,37 @@ class TestGeneCoverageSumTranscriptwise(unittest.TestCase):
         )
         expected_keys = ["group2", "group1"]
         counts, keys = gene_coverage_sum_transcriptwise(
-            self.coverage, self.transcript_groups, sort_descending=True,
+            self.coverage,
+            self.transcript_groups,
+            sort_descending=True,
         )
         np.testing.assert_array_equal(counts, expected_counts)
         self.assertEqual(keys, expected_keys)
 
     def test_empty_transcript_groups(self):
-        # Test with empty transcript_groups
+        """Test with empty transcript_groups."""
         empty_transcript_groups = {}
         counts, keys = gene_coverage_sum_transcriptwise(
-            self.coverage, empty_transcript_groups,
+            self.coverage,
+            empty_transcript_groups,
         )
         self.assertEqual(np.size(counts), 0)
         self.assertEqual(np.size(keys), 0)
 
     def test_empty_coverage(self):
-        # Test with empty coverage array
+        """Test with empty coverage array."""
         empty_coverage = np.empty((0, 4))  # 0 samples, 4 transcripts
         expected_counts = np.empty((0, 2))  # 0 samples, 2 groups
         expected_keys = ["group1", "group2"]
         counts, keys = gene_coverage_sum_transcriptwise(
-            empty_coverage, self.transcript_groups,
+            empty_coverage,
+            self.transcript_groups,
         )
         np.testing.assert_array_equal(counts, expected_counts)
         self.assertEqual(keys, expected_keys)
 
     def test_single_transcript_group(self):
-        # Test with a single transcript group
+        """Test with a single transcript group."""
         single_transcript_group = {
             "group1": [0, 1, 2, 3],
         }  # All transcripts in one group
@@ -187,13 +204,14 @@ class TestGeneCoverageSumTranscriptwise(unittest.TestCase):
         )
         expected_keys = ["group1"]
         counts, keys = gene_coverage_sum_transcriptwise(
-            self.coverage, single_transcript_group,
+            self.coverage,
+            single_transcript_group,
         )
         np.testing.assert_array_equal(counts, expected_counts)
         self.assertEqual(keys, expected_keys)
 
     def test_non_contiguous_transcripts(self):
-        # Test with non-contiguous transcript indices
+        """Test with non-contiguous transcript indices."""
         non_contiguous_groups = {
             "group1": [0, 2],  # Transcripts 0 and 2
             "group2": [1, 3],  # Transcripts 1 and 3
@@ -207,7 +225,8 @@ class TestGeneCoverageSumTranscriptwise(unittest.TestCase):
         )
         expected_keys = ["group1", "group2"]
         counts, keys = gene_coverage_sum_transcriptwise(
-            self.coverage, non_contiguous_groups,
+            self.coverage,
+            non_contiguous_groups,
         )
         np.testing.assert_array_equal(counts, expected_counts)
         self.assertEqual(keys, expected_keys)
