@@ -134,6 +134,22 @@ def ale_psi_by_group(
     n_bootstrap:int=10,
     mincov_frac:float=0.01,
 )->dict | None:
+    """Calculate psi metric for alternative last exons per sample group.
+
+    :param transcriptome: isotools.Transcriptome object
+    :param gene_id: ID for gene of interest, for lookup in `transcriptome`
+    :param groups: Sample groups for which to calculate psi; group names as
+        keys, lists of sample names as values. Sample names should be present
+        in `transcriptome.samples`
+    :param query: Filter query passed to isotools.Gene object.
+    :param n_bootstrap: Number of resamplings for significance testing.
+    :param mincov_frac: Minimum fraction of total (exclusive) for an
+        alternative last exon to be included in the psi calculation, to exclude
+        exons that may be artefacts or have too low coverage.
+    :returns: Results, under key `actual` are the actual psi values, counts,
+        and junction coordinates calculated. Under `bootstraps` are the
+        resampled psi values and count matrices for significance testing.
+    """
     # Get indices of samples and groups
     sample2idx = {s: idx for (idx, s) in enumerate(transcriptome.samples)}
     groups2idx = {g : [sample2idx[s] for s in samples] for g, samples in groups.items()}
@@ -200,6 +216,17 @@ def apa_psi_by_group_one_exon(
     n_bootstrap:int=10,
     mincov_frac:float=0.01,
 )->dict | None:
+    """Calculate psi metric for APA per sample group for one exon of one gene.
+
+    This function is primarily meant to be called by `apa_psi_by_group`
+    although it is exposed to the user. See the other function for other
+    parameter documentation.
+
+    :param trids: List of transcript IDs that contain the exon of interest
+    :returns: Results, under key `actual` are the actual psi values, counts,
+        and junction coordinates calculated. Under `bootstraps` are the
+        resampled psi values and count matrices for significance testing.
+    """
     # Peak calling
     _p, _c, _s, peaks, peak_assignments = get_gene_terminal_peaks(transcriptome[gene_id], trids=trids)
     if peak_assignments is None:  # No peaks, coverage too low
@@ -254,6 +281,24 @@ def apa_psi_by_group(
     n_bootstrap:int=10,
     mincov_frac:float=0.01,
 )->dict | None:
+    """Calculate psi metric for APA per sample group for all exons of a gene.
+
+    :param transcriptome: isotools.Transcriptome object
+    :param gene_id: ID for gene of interest, for lookup in `transcriptome`
+    :param groups: Sample groups for which to calculate psi; group names as
+        keys, lists of sample names as values. Sample names should be present
+        in `transcriptome.samples`
+    :param query: Filter query passed to isotools.Gene object.
+    :param n_bootstrap: Number of resamplings for significance testing.
+    :param mincov_frac: Minimum fraction of total (exclusive) for an
+        alternative last exon to be included in the psi calculation, to exclude
+        exons that may be artefacts or have too low coverage.
+    :returns: Results keyed by internal splice junction coordinate of each last
+        exon. Results of APA for each last exon are structured as for
+        `ale_psi_by_group`: under key `actual` are the actual psi values,
+        counts, and junction coordinates calculated. Under `bootstraps` are the
+        resampled psi values and count matrices for significance testing.
+    """
     # Get transcripts corresponding to each last exon
     lastexon2trid = get_gene_last_exons(transcriptome[gene_id])
     out = {}
