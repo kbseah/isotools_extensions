@@ -64,6 +64,12 @@ Extended functions are monkeypatched to `isotools.Gene` and
   downstream A content; should parent features be exon, transcript, or gene?
 
 
+## AI use declaration
+
+GitHub Copilot (GPT-4o) was used to generate boilerplate and write tests (Level
+3 on the [Pwanson scale](https://www.visidata.org/blog/2026/ai/)).
+
+
 ## License
 
 [MIT](LICENSE)
