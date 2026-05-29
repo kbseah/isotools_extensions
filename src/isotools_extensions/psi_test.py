@@ -126,7 +126,7 @@ def ale_psi_by_group(
     transcriptome: Transcriptome,
     gene_id: str,
     groups: dict,
-    query: str = "not FRAGMENT and not UNSPLICED",
+    query: str = "not UNSPLICED",
     n_bootstrap: int = 10,
     mincov_frac: float = 0.01,
 ) -> dict | None:
@@ -210,7 +210,7 @@ def apa_psi_by_group_one_exon(
     gene_id: str,
     trids: list,
     groups: dict,
-    query: str = "not FRAGMENT and not UNSPLICED",
+    query: str = "not UNSPLICED",
     n_bootstrap: int = 10,
     mincov_frac: float = 0.01,
 ) -> dict | None:
@@ -290,7 +290,7 @@ def apa_psi_by_group(
     transcriptome: Transcriptome,
     gene_id: str,
     groups: dict,
-    query: str = "not FRAGMENT and not UNSPLICED",
+    query: str = "not UNSPLICED",
     n_bootstrap: int = 10,
     mincov_frac: float = 0.01,
 ) -> dict | None:
