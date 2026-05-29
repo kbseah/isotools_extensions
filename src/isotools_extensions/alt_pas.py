@@ -4,7 +4,7 @@ from itertools import combinations
 
 import numpy as np
 import pandas as pd
-from isotools import Gene
+from isotools import Gene, Transcriptome
 from isotools._transcriptome_stats import TESTS, _check_groups
 from isotools._utils import smooth
 from scipy.signal import find_peaks
@@ -118,7 +118,7 @@ def translate_peaks_offset(peaks: list, offset: int) -> tuple:
 
 def get_gene_terminal_peaks(
     gene: Gene,
-    trids: list = None,
+    trids: list | None = None,
     which: str = "PAS",
     smooth_window: int = 31,
     prominence: int = 2,
@@ -200,12 +200,12 @@ def get_gene_last_exons(gene: Gene, **kwargs) -> dict:
             else transcript["exons"][0][1]
         )
         if trid in trids:
-            last_exons[last_exon_start] = last_exons.get(last_exon_start, []) + [trid]
+            last_exons[last_exon_start] = [last_exons.get(last_exon_start, []), trid]
     return last_exons
 
 
 def test_alternative_pas(
-    self,
+    self: Transcriptome,
     groups: dict,
     smooth_window: int = 31,
     prominence: int = 2,
@@ -312,7 +312,8 @@ def test_alternative_pas(
                 if sum((ni >= min_n).sum() for ni in n[:2]) < min_sa:
                     continue
                 pval, params = test(x[:2], n[:2])
-                # pvalue is NaN, comparison is invalid (e.g. all counts zero for both groups in one alternate)
+                # pvalue is NaN, comparison is invalid (e.g. all counts zero
+                # for both groups in one alternate)
                 if np.isnan(pval):
                     continue
                 covs = [
@@ -665,7 +666,7 @@ def gene_test_lastexon_len(
 
 
 def test_diff_lastexon_len(
-    self,
+    self: Transcriptome,
     groups: dict,
     pairs: list,
     alpha: float = 0.05,
@@ -674,7 +675,7 @@ def test_diff_lastexon_len(
 ) -> pd.DataFrame:
     """Test for differential last exon length.
 
-    Unlike test_alternative_pas, this function does not attempt to call PAS
+    Unlike `test_alternative_pas`, this function does not attempt to call PAS
     peaks but simply tests for significant difference in the last exon lengths
     between groups for transcripts of a given gene that share the same last
     exon.

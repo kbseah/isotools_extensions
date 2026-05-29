@@ -17,8 +17,7 @@ def sashimi_figure_altsplice_result(
     end: int | None = None,
     query: str = "(FSM or not (RTTS or INTERNAL_PRIMING or FRAGMENT)) and SUBSTANTIAL",
 ) -> tuple:
-    """Sashimi plot and gene tracks figure for isoforms involved in a single
-    alternative splicing event.
+    """Sashimi plot with gene tracks for a single alternative splicing event.
 
     Augment the sashimi plot with gene tracks for isoforms of interest to help
     evaluate an alternative splicing event. The AS event must have previously
@@ -154,10 +153,10 @@ def domains_figure(
     groups: dict,
     source: str = "hmmer",
     query: str = "FSM or SUBSTANTIAL",
-    transcript_ids=False,
-    cov_color="grey",
-    ref_transcript_ids=False,
-    highlight=None,
+    transcript_ids: list | bool = False,
+    cov_color: str = "grey",
+    ref_transcript_ids: list | bool = False,
+    highlight: tuple | list | None = None,
     height_factor: float = 0.75,
     **kwargs,
 ) -> tuple:
@@ -237,7 +236,10 @@ def domains_figure(
     # Coverage per isoform per group, as scatter plot blobs
     # transpose: rows represent transcripts
     group_covs = coverage_by_group(
-        self, transcriptome=transcriptome, groups=groups, trids=trids
+        self,
+        transcriptome=transcriptome,
+        groups=groups,
+        trids=trids,
     )
     arr = np.array([group_covs[group] for group in groups]).T
 
@@ -302,7 +304,7 @@ def domains_figure_altsplice_result(
     diff_splice_result,
     source: str = "hmmer",
     query: str = "FSM or SUBSTANTIAL",
-    ref_transcript_ids=False,
+    ref_transcript_ids: list | bool = False,
     height_factor: float = 0.75,
     **kwargs,
 ) -> tuple:

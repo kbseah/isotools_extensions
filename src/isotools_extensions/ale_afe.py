@@ -15,9 +15,9 @@ logger = logging.getLogger(__name__)
 def get_exon_nodes(
     segment_graph: SegmentGraph,
     transcript: int,
-    start_node=None,
-    end_node=None,
-):
+    start_node: int | None = None,
+    end_node: int | None = None,
+) -> list[tuple]:
     """Get exon nodes for a given transcript from its isotools segment graph.
 
     :param segment_graph: isotools.SegmentGraph object
@@ -198,7 +198,7 @@ def get_ale_afe(segment_graph: SegmentGraph, which: str = "ALE") -> dict:
 
 
 def find_ale_afe_pairs(gene: Gene, which: str = "ALE") -> tuple:
-    """Generator for ALE/AFE events similar to find_splice_bubbles.
+    """Generate ALE/AFE events; similar to `find_splice_bubbles`.
 
     To identify potential ALE and AFE events in a gene, we first identify all
     splice junctions immediately upstream of a terminal exon. Then, for each of
@@ -285,7 +285,7 @@ def find_ale_afe_simple_pairs(
     which: str = "ALE",
     query: str = "not FRAGMENT and not UNSPLICED",
 ) -> tuple:
-    """Generator for ALE/AFE events, ignoring common splice junctions.
+    """Generate ALE/AFE events, ignoring common splice junctions.
 
     "Naive" version of ALE/AFE finding that simply groups all transcripts by
     their common last/first intron, and then yields all pairwise combinations.
