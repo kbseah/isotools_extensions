@@ -1,8 +1,15 @@
-"""Implement tests based on LABRAT-style psi metric."""
+"""Tests for alternative polyadenylation (APA) using LABRAT-type psi metric.
+
+Main functions are:
+* `ale_psi_by_group`: Test alternative last exon APA (ALE-APA).
+* `ale_psi_by_group_one_exon`: Test tandem 3'-UTR APA for a single exon in a
+    gene of interest (TUTR-APA).
+* `ale_psi_by_group`: Applies TUTR-APA test to all last exons for a given gene.
+"""
 import logging
 import numpy as np
 from isotools import Transcriptome
-from isotools_extensions.alt_pas import get_gene_last_exons
+from isotools_extensions.alt_pas import get_gene_last_exons, get_gene_terminal_peaks
 
 
 logger = logging.getLogger("isotools")
@@ -182,3 +189,82 @@ def ale_psi_by_group(
         out["bootstraps"].append({"counts" : bs, "psi": bs_psi})
 
     return out
+
+
+def apa_psi_by_group_one_exon(
+    transcriptome:Transcriptome,
+    gene_id:str,
+    trids:list,
+    groups:dict,
+    query:str="not FRAGMENT and not UNSPLICED",
+    n_bootstrap:int=10,
+    mincov_frac:float=0.01,
+)->dict | None:
+    # Peak calling
+    _p, _c, _s, peaks, peak_assignments = get_gene_terminal_peaks(transcriptome[gene_id], trids=trids)
+    if peak_assignments is None:  # No peaks, coverage too low
+        return None
+    # Dict of peak indices by peak coordinates
+    peak_idx = { peak : i for i, peak in enumerate(peaks["total"][0]) }
+    peak_idx_sorted = [i for i, peak in sorted(enumerate(peaks["total"][0]), key=lambda x: x[1], reverse=(transcriptome[gene_id].strand == "-"))]
+    # Coverage per sample (rows) per peak (columns)
+    counts = np.array([
+        [peak_assignments["total"][p][s] for p in peak_idx_sorted]
+        for s in transcriptome.samples
+    ])
+    # Get indices of samples and groups
+    sample2idx = {s: idx for (idx, s) in enumerate(transcriptome.samples)}
+    groups2idx = {g : [sample2idx[s] for s in samples] for g, samples in groups.items()}
+
+    # Sum counts by sample group
+    counts_group, groups = gene_coverage_sum_samplewise(counts, groups2idx)
+
+    # Filter only those peaks that represent at least x% of total
+    counts_filt, filt_idx = filter_transcripts_by_coverage(counts_group, mincov_frac)
+    if len(filt_idx) <= 1:
+        logger.debug("Zero or only one peak after coverage filtering for gene %s lastexon %d", gene_id, lastexon_coord)
+        return None
+    peak_idx_sorted = [peak_idx_sorted[i] for i in filt_idx]
+    psi = coverage_matrix_to_psi(counts_filt)
+
+    out = {}
+    out["actual"] = {
+        "counts" : counts_filt,
+        "peaks" : { i: peaks["total"][0][i] for i in peak_idx_sorted },
+        "psi" : psi,
+        "peaks_ordered" : peak_idx_sorted,
+        "groups_ordered" : groups,
+    }
+
+    # bootstrapping
+    out["bootstraps"] = []
+    for i in range(n_bootstrap):
+        bs = bootstrap_count_matrix(counts_filt)
+        bs_psi = coverage_matrix_to_psi(bs)
+        out["bootstraps"].append({"counts" : bs, "psi": bs_psi})
+
+    return out
+
+
+def apa_psi_by_group(
+    transcriptome:Transcriptome,
+    gene_id:str,
+    groups:dict,
+    query:str="not FRAGMENT and not UNSPLICED",
+    n_bootstrap:int=10,
+    mincov_frac:float=0.01,
+)->dict | None:
+    # Get transcripts corresponding to each last exon
+    lastexon2trid = get_gene_last_exons(transcriptome[gene_id])
+    out = {}
+    for lastexon, trids in lastexon2trid.items():
+        res = apa_psi_by_group_one_exon(
+            transcriptome, gene_id, trids, groups,
+            query=query,
+            n_bootstrap=n_bootstrap,
+            mincov_frac=mincov_frac,
+        )
+        if res is not None:
+            out[lastexon] = res
+    return out
+
