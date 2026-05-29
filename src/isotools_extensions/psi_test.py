@@ -1,9 +1,11 @@
 """Implement tests based on LABRAT-style psi metric."""
+import logging
 import numpy as np
-from isotools import Gene, Transcriptome
-from isotools._transcriptome_stats import TESTS, _check_groups
+from isotools import Transcriptome
 from isotools_extensions.alt_pas import get_gene_last_exons
 
+
+logger = logging.getLogger("isotools")
 
 def gene_coverage_sum_samplewise(
     coverage:np.ndarray,
@@ -84,8 +86,8 @@ def coverage_matrix_to_psi(
     """Calculate LABRAT-style psi from counts matrix.
 
     :param coverage: 2D matrix of coverage per sample (row) per ALE/APA
-        (columns). The columns must already be sorted from proximal
-        (lowest index) to distal (highest index).
+        (columns). The columns must already be sorted from proximal (lowest
+        index) to distal (highest index).
     :returns: Array of length `coverage.shape[0]`, of the psi values
         for each sample.
     """
@@ -94,4 +96,89 @@ def coverage_matrix_to_psi(
     return (coverage * mm).sum(axis=1) / coverage.sum(axis=1)
 
 
+def bootstrap_count_matrix(obs:list|np.ndarray, rng=None)->np.ndarray:
+    """Resample with replacement a count matrix.
 
+    :param obs: 2D array of integer counts.
+    :param rng: Random number generator to use, passed to `np.random.default_rng`.
+    :returns: Resampled matrix of the same shape as `obs`.
+    """
+    obs = np.asarray(obs)
+    if obs.ndim != 2:
+        raise ValueError("obs must be a 2D array")
+    if np.any(obs < 0):
+        raise ValueError("obs must contain nonnegative counts")
+
+    total = obs.sum()
+    if total == 0:
+        return np.zeros_like(obs)
+
+    rng = np.random.default_rng(rng)
+    p = obs.ravel() / total
+    boot = rng.multinomial(total, p)
+    return boot.reshape(obs.shape)
+
+
+def ale_psi_by_group(
+    transcriptome:Transcriptome,
+    gene_id:str,
+    groups:dict,
+    query:str="not FRAGMENT and not UNSPLICED",
+    n_bootstrap:int=10,
+    mincov_frac:float=0.01,
+)->dict | None:
+    # Get indices of samples and groups
+    sample2idx = {s: idx for (idx, s) in enumerate(transcriptome.samples)}
+    groups2idx = {g : [sample2idx[s] for s in samples] for g, samples in groups.items()}
+
+    # Get junction coordinates for exons of interest
+    trids = transcriptome[gene_id].filter_transcripts(query)
+    if len(trids) <= 1:
+        logger.warning("No transcripts after filter query")
+        return None
+    junc2trid = {
+        junc : [t for t in transcripts if t in trids]
+        for junc, transcripts in get_gene_last_exons(transcriptome[gene_id]).items()
+    }
+
+    # Sum counts per last exon and sort from proximal to distal
+    counts_junc, juncs = gene_coverage_sum_transcriptwise(
+        transcriptome[gene_id].coverage,
+        junc2trid,
+        sort_descending=(transcriptome[gene_id].strand == "-"),
+    )
+    if len(juncs) <= 1:
+        logger.warning("No junctions found for %s??", gene_id)
+        return None
+
+    # Sum counts by sample group
+    counts_junc_group, groups = gene_coverage_sum_samplewise(counts_junc, groups2idx)
+
+    # Filter only those junctions that represent at least x% of total
+    counts_filt, filt_idx = filter_transcripts_by_coverage(counts_junc_group, mincov_frac)
+    if len(filt_idx) <= 1:
+        logger.warning(
+            "Zero or only one exon after coverage filtering for gene %s",
+            gene_id,
+        )
+        return None
+    juncs_filt = [juncs[i] for i in filt_idx]
+    psi = coverage_matrix_to_psi(counts_filt)
+
+    out = {}
+    out["actual"] = {
+        "counts" : counts_filt,
+        "juncs" : { j: junc2trid[j] for j in juncs_filt },
+        "psi" : psi,
+        "juncs_ordered" : juncs_filt,
+        "groups_ordered" : groups,
+    }
+
+    # bootstrapping
+    out["bootstraps"] = []
+    for _i in range(n_bootstrap):
+        bs = bootstrap_count_matrix(counts_filt)
+        bs_psi = coverage_matrix_to_psi(bs)
+        out["bootstraps"].append({"counts" : bs, "psi": bs_psi})
+
+    return out
