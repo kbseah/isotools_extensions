@@ -80,7 +80,7 @@ def filter_transcripts_by_coverage(
     if mincov_frac > 1 or mincov_frac < 0:
         raise ValueError("`mincov_frac` should be between 0 and 1")
     mask = coverage.sum(axis=0) > mincov_frac * coverage.sum()
-    return coverage[:, mask], np.where(mask)[0]
+    return coverage[:, mask], np.where(mask==True)[0]
 
 
 def coverage_matrix_to_psi(
@@ -96,7 +96,14 @@ def coverage_matrix_to_psi(
     """
     # m values
     mm = np.array(range(coverage.shape[1])) / (coverage.shape[1] - 1)
-    return (coverage * mm).sum(axis=1) / coverage.sum(axis=1)
+    scaled = (coverage * mm).sum(axis=1)
+    unscaled = coverage.sum(axis=1)
+    # Suppress warnings for invalid division and handle division by zero
+    # if sum is zero for some rows (i.e. samples/groups)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        psi = scaled / unscaled
+        psi[~np.isfinite(psi)] = np.nan  # Replace inf and -inf with NaN
+    return psi
 
 
 def bootstrap_count_matrix(obs: list | np.ndarray, rng=None) -> np.ndarray:
@@ -232,7 +239,6 @@ def apa_psi_by_group_one_exon(
     if peak_assignments is None:  # No peaks, coverage too low
         return None
     # Dict of peak indices by peak coordinates
-    peak_idx = {peak: i for i, peak in enumerate(peaks["total"][0])}
     peak_idx_sorted = [
         i
         for i, peak in sorted(
@@ -259,9 +265,8 @@ def apa_psi_by_group_one_exon(
     counts_filt, filt_idx = filter_transcripts_by_coverage(counts_group, mincov_frac)
     if len(filt_idx) <= 1:
         logger.debug(
-            "Zero or only one peak after coverage filtering for gene %s lastexon %d",
+            "Zero or only one peak after coverage filtering for gene %s",
             gene_id,
-            lastexon_coord,
         )
         return None
     peak_idx_sorted = [peak_idx_sorted[i] for i in filt_idx]
