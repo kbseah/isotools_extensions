@@ -4,6 +4,7 @@
 
 from isotools import Gene, Transcriptome
 
+from .__about__ import __version__
 from .ale_afe import test_ale_afe
 from .alt_pas import test_alternative_pas, test_diff_lastexon_len
 from .domains import add_hmmer_domains_parallel
