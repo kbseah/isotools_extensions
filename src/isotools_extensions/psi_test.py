@@ -6,6 +6,7 @@ Main functions are:
     gene of interest (TUTR-APA).
 * `ale_psi_by_group`: Applies TUTR-APA test to all last exons for a given gene.
 """
+
 import logging
 import numpy as np
 from isotools import Transcriptome
@@ -14,10 +15,9 @@ from isotools_extensions.alt_pas import get_gene_last_exons, get_gene_terminal_p
 
 logger = logging.getLogger("isotools")
 
+
 def gene_coverage_sum_samplewise(
-    coverage:np.ndarray,
-    sample_groups:dict,
-    sort_descending:bool=False
+    coverage: np.ndarray, sample_groups: dict, sort_descending: bool = False
 ) -> tuple:
     """Sum grouped coverage by sample groups.
 
@@ -32,18 +32,15 @@ def gene_coverage_sum_samplewise(
         `coverage`. (2) sorted list of keys from `sample_groups`.
     """
     keys = sorted(sample_groups, reverse=sort_descending)
-    counts_sum = np.asarray([
-        coverage[sample_groups[key], :].sum(axis=0)
-        for key in keys
-    ])
+    counts_sum = np.asarray(
+        [coverage[sample_groups[key], :].sum(axis=0) for key in keys]
+    )
     return counts_sum, keys
 
 
 def gene_coverage_sum_transcriptwise(
-    coverage:np.ndarray,
-    transcript_groups:dict,
-    sort_descending:bool=False
-)->tuple:
+    coverage: np.ndarray, transcript_groups: dict, sort_descending: bool = False
+) -> tuple:
     """Sum grouped coverage by transcript groups.
 
     :param coverage: 2D coverage counts array, with samples as rows and
@@ -57,17 +54,16 @@ def gene_coverage_sum_transcriptwise(
         sorted list of keys from `transcript_groups`.
     """
     keys = sorted(transcript_groups, reverse=sort_descending)
-    counts_sum = np.asarray([
-        coverage[:,transcript_groups[key]].sum(axis=1)
-        for key in keys
-    ]).T
+    counts_sum = np.asarray(
+        [coverage[:, transcript_groups[key]].sum(axis=1) for key in keys]
+    ).T
     return counts_sum, keys
 
 
 def filter_transcripts_by_coverage(
-    coverage:np.ndarray,
-    mincov_frac:float = 0.01,
-)->tuple:
+    coverage: np.ndarray,
+    mincov_frac: float = 0.01,
+) -> tuple:
     """Filter matrix of coverage counts by minimum coverage fraction.
 
     Filters the columns of the input matrix, i.e. the column sum must be over
@@ -88,7 +84,7 @@ def filter_transcripts_by_coverage(
 
 
 def coverage_matrix_to_psi(
-    coverage:np.ndarray,
+    coverage: np.ndarray,
 ) -> np.ndarray:
     """Calculate LABRAT-style psi from counts matrix.
 
@@ -99,11 +95,11 @@ def coverage_matrix_to_psi(
         for each sample.
     """
     # m values
-    mm = (np.array(range(coverage.shape[1]))/(coverage.shape[1]-1))
+    mm = np.array(range(coverage.shape[1])) / (coverage.shape[1] - 1)
     return (coverage * mm).sum(axis=1) / coverage.sum(axis=1)
 
 
-def bootstrap_count_matrix(obs:list|np.ndarray, rng=None)->np.ndarray:
+def bootstrap_count_matrix(obs: list | np.ndarray, rng=None) -> np.ndarray:
     """Resample with replacement a count matrix.
 
     :param obs: 2D array of integer counts.
@@ -127,13 +123,13 @@ def bootstrap_count_matrix(obs:list|np.ndarray, rng=None)->np.ndarray:
 
 
 def ale_psi_by_group(
-    transcriptome:Transcriptome,
-    gene_id:str,
-    groups:dict,
-    query:str="not FRAGMENT and not UNSPLICED",
-    n_bootstrap:int=10,
-    mincov_frac:float=0.01,
-)->dict | None:
+    transcriptome: Transcriptome,
+    gene_id: str,
+    groups: dict,
+    query: str = "not FRAGMENT and not UNSPLICED",
+    n_bootstrap: int = 10,
+    mincov_frac: float = 0.01,
+) -> dict | None:
     """Calculate psi metric for alternative last exons per sample group.
 
     :param transcriptome: isotools.Transcriptome object
@@ -152,7 +148,7 @@ def ale_psi_by_group(
     """
     # Get indices of samples and groups
     sample2idx = {s: idx for (idx, s) in enumerate(transcriptome.samples)}
-    groups2idx = {g : [sample2idx[s] for s in samples] for g, samples in groups.items()}
+    groups2idx = {g: [sample2idx[s] for s in samples] for g, samples in groups.items()}
 
     # Get junction coordinates for exons of interest
     trids = transcriptome[gene_id].filter_transcripts(query)
@@ -160,7 +156,7 @@ def ale_psi_by_group(
         logger.warning("No transcripts after filter query")
         return None
     junc2trid = {
-        junc : [t for t in transcripts if t in trids]
+        junc: [t for t in transcripts if t in trids]
         for junc, transcripts in get_gene_last_exons(transcriptome[gene_id]).items()
     }
 
@@ -178,7 +174,9 @@ def ale_psi_by_group(
     counts_junc_group, groups = gene_coverage_sum_samplewise(counts_junc, groups2idx)
 
     # Filter only those junctions that represent at least x% of total
-    counts_filt, filt_idx = filter_transcripts_by_coverage(counts_junc_group, mincov_frac)
+    counts_filt, filt_idx = filter_transcripts_by_coverage(
+        counts_junc_group, mincov_frac
+    )
     if len(filt_idx) <= 1:
         logger.warning(
             "Zero or only one exon after coverage filtering for gene %s",
@@ -190,11 +188,11 @@ def ale_psi_by_group(
 
     out = {}
     out["actual"] = {
-        "counts" : counts_filt,
-        "juncs" : { j: junc2trid[j] for j in juncs_filt },
-        "psi" : psi,
-        "juncs_ordered" : juncs_filt,
-        "groups_ordered" : groups,
+        "counts": counts_filt,
+        "juncs": {j: junc2trid[j] for j in juncs_filt},
+        "psi": psi,
+        "juncs_ordered": juncs_filt,
+        "groups_ordered": groups,
     }
 
     # bootstrapping
@@ -202,20 +200,20 @@ def ale_psi_by_group(
     for _i in range(n_bootstrap):
         bs = bootstrap_count_matrix(counts_filt)
         bs_psi = coverage_matrix_to_psi(bs)
-        out["bootstraps"].append({"counts" : bs, "psi": bs_psi})
+        out["bootstraps"].append({"counts": bs, "psi": bs_psi})
 
     return out
 
 
 def apa_psi_by_group_one_exon(
-    transcriptome:Transcriptome,
-    gene_id:str,
-    trids:list,
-    groups:dict,
-    query:str="not FRAGMENT and not UNSPLICED",
-    n_bootstrap:int=10,
-    mincov_frac:float=0.01,
-)->dict | None:
+    transcriptome: Transcriptome,
+    gene_id: str,
+    trids: list,
+    groups: dict,
+    query: str = "not FRAGMENT and not UNSPLICED",
+    n_bootstrap: int = 10,
+    mincov_frac: float = 0.01,
+) -> dict | None:
     """Calculate psi metric for APA per sample group for one exon of one gene.
 
     This function is primarily meant to be called by `apa_psi_by_group`
@@ -228,20 +226,31 @@ def apa_psi_by_group_one_exon(
         resampled psi values and count matrices for significance testing.
     """
     # Peak calling
-    _p, _c, _s, peaks, peak_assignments = get_gene_terminal_peaks(transcriptome[gene_id], trids=trids)
+    _p, _c, _s, peaks, peak_assignments = get_gene_terminal_peaks(
+        transcriptome[gene_id], trids=trids
+    )
     if peak_assignments is None:  # No peaks, coverage too low
         return None
     # Dict of peak indices by peak coordinates
-    peak_idx = { peak : i for i, peak in enumerate(peaks["total"][0]) }
-    peak_idx_sorted = [i for i, peak in sorted(enumerate(peaks["total"][0]), key=lambda x: x[1], reverse=(transcriptome[gene_id].strand == "-"))]
+    peak_idx = {peak: i for i, peak in enumerate(peaks["total"][0])}
+    peak_idx_sorted = [
+        i
+        for i, peak in sorted(
+            enumerate(peaks["total"][0]),
+            key=lambda x: x[1],
+            reverse=(transcriptome[gene_id].strand == "-"),
+        )
+    ]
     # Coverage per sample (rows) per peak (columns)
-    counts = np.array([
-        [peak_assignments["total"][p][s] for p in peak_idx_sorted]
-        for s in transcriptome.samples
-    ])
+    counts = np.array(
+        [
+            [peak_assignments["total"][p][s] for p in peak_idx_sorted]
+            for s in transcriptome.samples
+        ]
+    )
     # Get indices of samples and groups
     sample2idx = {s: idx for (idx, s) in enumerate(transcriptome.samples)}
-    groups2idx = {g : [sample2idx[s] for s in samples] for g, samples in groups.items()}
+    groups2idx = {g: [sample2idx[s] for s in samples] for g, samples in groups.items()}
 
     # Sum counts by sample group
     counts_group, groups = gene_coverage_sum_samplewise(counts, groups2idx)
@@ -249,18 +258,22 @@ def apa_psi_by_group_one_exon(
     # Filter only those peaks that represent at least x% of total
     counts_filt, filt_idx = filter_transcripts_by_coverage(counts_group, mincov_frac)
     if len(filt_idx) <= 1:
-        logger.debug("Zero or only one peak after coverage filtering for gene %s lastexon %d", gene_id, lastexon_coord)
+        logger.debug(
+            "Zero or only one peak after coverage filtering for gene %s lastexon %d",
+            gene_id,
+            lastexon_coord,
+        )
         return None
     peak_idx_sorted = [peak_idx_sorted[i] for i in filt_idx]
     psi = coverage_matrix_to_psi(counts_filt)
 
     out = {}
     out["actual"] = {
-        "counts" : counts_filt,
-        "peaks" : { i: peaks["total"][0][i] for i in peak_idx_sorted },
-        "psi" : psi,
-        "peaks_ordered" : peak_idx_sorted,
-        "groups_ordered" : groups,
+        "counts": counts_filt,
+        "peaks": {i: peaks["total"][0][i] for i in peak_idx_sorted},
+        "psi": psi,
+        "peaks_ordered": peak_idx_sorted,
+        "groups_ordered": groups,
     }
 
     # bootstrapping
@@ -268,19 +281,19 @@ def apa_psi_by_group_one_exon(
     for i in range(n_bootstrap):
         bs = bootstrap_count_matrix(counts_filt)
         bs_psi = coverage_matrix_to_psi(bs)
-        out["bootstraps"].append({"counts" : bs, "psi": bs_psi})
+        out["bootstraps"].append({"counts": bs, "psi": bs_psi})
 
     return out
 
 
 def apa_psi_by_group(
-    transcriptome:Transcriptome,
-    gene_id:str,
-    groups:dict,
-    query:str="not FRAGMENT and not UNSPLICED",
-    n_bootstrap:int=10,
-    mincov_frac:float=0.01,
-)->dict | None:
+    transcriptome: Transcriptome,
+    gene_id: str,
+    groups: dict,
+    query: str = "not FRAGMENT and not UNSPLICED",
+    n_bootstrap: int = 10,
+    mincov_frac: float = 0.01,
+) -> dict | None:
     """Calculate psi metric for APA per sample group for all exons of a gene.
 
     :param transcriptome: isotools.Transcriptome object
@@ -304,7 +317,10 @@ def apa_psi_by_group(
     out = {}
     for lastexon, trids in lastexon2trid.items():
         res = apa_psi_by_group_one_exon(
-            transcriptome, gene_id, trids, groups,
+            transcriptome,
+            gene_id,
+            trids,
+            groups,
             query=query,
             n_bootstrap=n_bootstrap,
             mincov_frac=mincov_frac,
@@ -312,4 +328,3 @@ def apa_psi_by_group(
         if res is not None:
             out[lastexon] = res
     return out
-
