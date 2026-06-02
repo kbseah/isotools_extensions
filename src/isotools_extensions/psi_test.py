@@ -9,6 +9,7 @@ Main functions are:
 
 import logging
 import numpy as np
+import pandas as pd
 from isotools import Transcriptome
 from isotools_extensions.alt_pas import get_gene_last_exons, get_gene_terminal_peaks
 
@@ -80,7 +81,7 @@ def filter_transcripts_by_coverage(
     if mincov_frac > 1 or mincov_frac < 0:
         raise ValueError("`mincov_frac` should be between 0 and 1")
     mask = coverage.sum(axis=0) > mincov_frac * coverage.sum()
-    return coverage[:, mask], np.where(mask==True)[0]
+    return coverage[:, mask], np.where(mask == True)[0]
 
 
 def coverage_matrix_to_psi(
@@ -333,3 +334,185 @@ def apa_psi_by_group(
         if res is not None:
             out[lastexon] = res
     return out
+
+
+def test_apa_psi(
+    self: Transcriptome,
+    groups: dict,
+    contrast: list | tuple,
+    transcript_query: str = "not UNSPLICED",
+    n_bootstrap: int = 100,
+    mincov_frac: float = 0.01,
+    min_total: int = 10,
+    min_group: int = 5,
+    **kwargs,
+) -> pd.DataFrame:
+    """Test for TUTR-APA with psi metric.
+
+    :param self: isotools.Transcriptome object
+    :param groups: Sample groups for which to calculate psi; group names as
+        keys, lists of sample names as values. Sample names should be present
+        in `self.samples`
+    :param contrast: Pair of groups to contrast for delta_psi calculation and
+        significance testing.
+    :param transcript_query: Filter for transcripts.
+    :param n_bootstrap: Number of resamplings for significance testing.
+    :param mincov_frac: Minimum fraction of total (exclusive) for an
+        alternative last exon to be included in the psi calculation, to exclude
+        exons that may be artefacts or have too low coverage.
+    :param min_total: Minimum total coverage over all selected samples (for all
+        groups combined)
+    :param min_group: Minimum coverage per group; all groups must have at least
+        this coverage for event to be considered.
+    :param **kwargs: Keyword arguments passed to self.iter_genes
+    :returns: pandas.DataFrame with test results.
+    """
+    if len(contrast) != 2:
+        raise ValueError("Only two groups can be contrasted")
+    outs = []
+    for gene in self.iter_genes(**kwargs):
+        res = apa_psi_by_group(
+            self,
+            gene.id,
+            groups,
+            query=transcript_query,
+            n_bootstrap=n_bootstrap,
+            mincov_frac=mincov_frac,
+        )
+        if res is None:
+            continue
+        for junc, result in res.items():
+            if result["actual"]["counts"].sum() < min_total:
+                continue
+            if any(result["actual"]["counts"].sum(axis=1) < min_group):
+                continue
+            psi_dict = dict(
+                zip(
+                    result["actual"]["groups_ordered"],
+                    result["actual"]["psi"],
+                    strict=True,
+                ),
+            )
+            delta_psi = psi_dict[contrast[0]] - psi_dict[contrast[1]]
+            peaks = [
+                result["actual"]["peaks"][i] for i in result["actual"]["peaks_ordered"]
+            ]
+            resample_psi = []
+            for bs in result["bootstraps"]:
+                bs_psi_dict = dict(
+                    zip(result["actual"]["groups_ordered"], bs["psi"], strict=True),
+                )
+                resample_psi.append(bs_psi_dict[contrast[0]] - bs_psi_dict[contrast[1]])
+            p = sum(np.array(resample_psi) > 0) / len(resample_psi)
+            out = {
+                "gene": gene.name,
+                "gene_id": gene.id,
+                "chrom": gene.chrom,
+                "strand": gene.strand,
+                "start": min([*peaks, junc]),
+                "end": max([*peaks, junc]),
+                "splice_type": "TUTR_APA",
+                "pvalue": p,
+                "peaks": np.array(peaks).tolist(),  # convert to native python int
+                "groups": result["actual"]["groups_ordered"],
+                "counts": result["actual"][
+                    "counts"
+                ].tolist(),  # convert numpy to native python list and int
+                "junc": junc,
+                "delta_psi": delta_psi,
+            }
+            out.update(
+                {
+                    f"{group}_psi": psi_dict[group]
+                    for group in result["actual"]["groups_ordered"]
+                },
+            )
+            outs.append(out)
+    return pd.DataFrame(outs)
+
+
+def test_ale_psi(
+    self: Transcriptome,
+    groups: dict,
+    contrast: list | tuple,
+    transcript_query: str = "not UNSPLICED",
+    n_bootstrap: int = 100,
+    mincov_frac: float = 0.01,
+    min_total: int = 10,
+    min_group: int = 5,
+    **kwargs,
+) -> pd.DataFrame:
+    """Test for ALE-APA with psi metric.
+
+    :param self: isotools.Transcriptome object.
+    :param groups: Sample groups for which to calculate psi; group names as
+        keys, lists of sample names as values. Sample names should be present
+        in `self.samples`
+    :param contrast: Pair of groups to contrast for delta_psi calculation and
+        significance testing.
+    :param transcript_query: Filter for transcripts.
+    :param n_bootstrap: Number of resamplings for significance testing.
+    :param mincov_frac: Minimum fraction of total (exclusive) for an
+        alternative last exon to be included in the psi calculation, to exclude
+        exons that may be artefacts or have too low coverage.
+    :param min_total: Minimum total coverage over all selected samples (for all
+        groups combined)
+    :param min_group: Minimum coverage per group; all groups must have at least
+        this coverage for event to be considered.
+    :param **kwargs: Keyword arguments passed to self.iter_genes
+    :returns: pandas.DataFrame with test results.
+    """
+    if len(contrast) != 2:
+        raise ValueError("Only two groups can be contrasted")
+    outs = []
+    for gene in self.iter_genes(**kwargs):
+        res = ale_psi_by_group(
+            self,
+            gene.id,
+            groups,
+            query=transcript_query,
+            n_bootstrap=n_bootstrap,
+            mincov_frac=mincov_frac,
+        )
+        if res is None:
+            continue
+        if res["actual"]["counts"].sum() < min_total:
+            continue
+        if any(res["actual"]["counts"].sum(axis=1) < min_group):
+            continue
+        psi_dict = dict(
+            zip(res["actual"]["groups_ordered"], res["actual"]["psi"], strict=True),
+        )
+        delta_psi = psi_dict[contrast[0]] - psi_dict[contrast[1]]
+        juncs = res["actual"]["juncs_ordered"]
+        resample_psi = []
+        for bs in res["bootstraps"]:
+            bs_psi_dict = dict(
+                zip(res["actual"]["groups_ordered"], bs["psi"], strict=True),
+            )
+            resample_psi.append(bs_psi_dict[contrast[0]] - bs_psi_dict[contrast[1]])
+        p = sum(np.array(resample_psi) > 0) / len(resample_psi)
+        out = {
+            "gene": gene.name,
+            "gene_id": gene.id,
+            "chrom": gene.chrom,
+            "strand": gene.strand,
+            "start": min(juncs),
+            "end": max(juncs),
+            "splice_type": "ALE_APA",
+            "pvalue": p,
+            "juncs": juncs,
+            "groups": res["actual"]["groups_ordered"],
+            "counts": res["actual"][
+                "counts"
+            ].tolist(),  # convert numpy to native python list and int
+            "delta_psi": delta_psi,
+        }
+        out.update(
+            {
+                f"{group}_psi": psi_dict[group]
+                for group in res["actual"]["groups_ordered"]
+            },
+        )
+        outs.append(out)
+    return pd.DataFrame(outs)

@@ -17,12 +17,15 @@ from .gene_plots import (
     plot_transcript_terminal_pileup,
     sashimi_figure_altsplice_result,
 )
+from .psi_test import test_ale_psi, test_apa_psi
 
 # Monkeypatch
 Transcriptome.test_alternative_pas = test_alternative_pas
 Transcriptome.test_ale_afe = test_ale_afe
 Transcriptome.test_diff_lastexon_len = test_diff_lastexon_len
 Transcriptome.add_hmmer_domains_parallel = add_hmmer_domains_parallel
+Transcriptome.test_ale_psi = test_ale_psi
+Transcriptome.test_apa_psi = test_apa_psi
 Gene.domains_figure = domains_figure
 Gene.domains_figure_altsplice_result = domains_figure_altsplice_result
 Gene.sashimi_figure_altsplice_result = sashimi_figure_altsplice_result

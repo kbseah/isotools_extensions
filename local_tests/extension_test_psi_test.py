@@ -4,7 +4,6 @@ import json
 import logging
 import isotools
 import isotools_extensions
-from isotools_extensions import psi_test
 from sys import stderr
 
 # set up logger and set log level to debug, ensure that logging messages from
@@ -18,25 +17,20 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 
 infile = "/data/CaiyuLab/aaeg-sex-isoforms/results/isotools/AaegyptiLVP_AGWG.VectorBase-68/transcriptome_isotools.with_orfs.pkl"
-outfile = "test_psi_test.json"
+outfile_apa = "test_psi_test.apa.tsv"
+outfile_ale = "test_psi_test.ale.tsv"
 
 if __name__ == "__main__":
     logger.info("Loading transcriptome")
     isoseq = isotools.Transcriptome.load(infile)
-    # tissue_groups = {'brain':['s269_1','s269_4'], 'gonad':['s269_2','s269_5'], 'carcass':['s269_3','s269_6']}
+    mygroups = {'brain':['s269_1','s269_4'], 'gonad':['s269_2','s269_5'], 'carcass':['s269_3','s269_6']}
     logger.info("Performing ALE test")
-    for goi in ["AAEL012323", "AAEL020804", "AAEL012740"]:
-        print(goi)
-        print("ALE")
-        res_ale = psi_test.ale_psi_by_group(
-            isoseq, goi, isoseq.groups(), query="not UNSPLICED", mincov_frac=0.01, n_bootstrap=1,
-        )
-        if res_ale is not None:
-            print(res_ale["actual"])
-        print()
-        print("APA")
-        res_apa = psi_test.apa_psi_by_group(
-            isoseq, goi, isoseq.groups(), query="not UNSPLICED", mincov_frac=0.01, n_bootstrap=1,
-        )
-        print(res_apa)
-        print()
+    gois = ["AAEL012323", "AAEL020804", "AAEL012740"]
+    out_ale = isoseq.test_ale_psi(
+        mygroups, contrast=["gonad","carcass"], gois=gois,
+    )
+    out_ale.to_csv(outfile_ale, sep="\t", index=False)
+    out_apa = isoseq.test_apa_psi(
+        mygroups, contrast=["gonad","carcass"], gois=gois,
+    )
+    out_apa.to_csv(outfile_apa, sep="\t", index=False)
