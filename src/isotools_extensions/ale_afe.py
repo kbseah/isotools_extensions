@@ -5,7 +5,7 @@ from itertools import combinations
 
 import numpy as np
 import pandas as pd
-from isotools import Gene, SegmentGraph
+from isotools import Gene, SegmentGraph, Transcriptome
 from isotools._transcriptome_stats import TESTS, _check_groups
 from isotools._utils import has_overlap
 
@@ -391,7 +391,7 @@ def find_ale_afe_simple_pairs(
 
 
 def test_ale_afe(
-    self,
+    self: Transcriptome,
     groups: dict,
     min_total: int = 100,
     min_alt_fraction: float = 0.01,  # different from Isotools default
