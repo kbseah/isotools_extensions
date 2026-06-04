@@ -161,7 +161,7 @@ def ale_psi_by_group(
     # Get junction coordinates for exons of interest
     trids = transcriptome[gene_id].filter_transcripts(query)
     if len(trids) <= 1:
-        logger.warning("No transcripts after filter query")
+        logger.debug("No transcripts after filter query for gene %s", gene_id)
         return None
     junc2trid = {
         junc: [t for t in transcripts if t in trids]
@@ -175,7 +175,7 @@ def ale_psi_by_group(
         sort_descending=(transcriptome[gene_id].strand == "-"),
     )
     if len(juncs) <= 1:
-        logger.warning("No junctions found for %s??", gene_id)
+        logger.debug("No junctions found for gene %s", gene_id)
         return None
 
     # Sum counts by sample group
@@ -186,7 +186,7 @@ def ale_psi_by_group(
         counts_junc_group, mincov_frac
     )
     if len(filt_idx) <= 1:
-        logger.warning(
+        logger.debug(
             "Zero or only one exon after coverage filtering for gene %s",
             gene_id,
         )
