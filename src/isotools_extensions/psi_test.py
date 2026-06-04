@@ -427,6 +427,16 @@ def test_apa_psi(
                     for group in result["actual"]["groups_ordered"]
                 },
             )
+            out.update(
+                {
+                    f"{group}_cov": cov
+                    for group, cov in zip(
+                        result["actual"]["groups_ordered"],
+                        result["actual"]["counts"].sum(axis=1),
+                        strict=True,
+                    )
+                },
+            )
             outs.append(out)
     return pd.DataFrame(outs)
 
@@ -512,6 +522,16 @@ def test_ale_psi(
             {
                 f"{group}_psi": psi_dict[group]
                 for group in res["actual"]["groups_ordered"]
+            },
+        )
+        out.update(
+            {
+                f"{group}_cov": cov
+                for group, cov in zip(
+                    res["actual"]["groups_ordered"],
+                    res["actual"]["counts"].sum(axis=1),
+                    strict=True,
+                )
             },
         )
         outs.append(out)
