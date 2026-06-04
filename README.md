@@ -27,6 +27,13 @@ pip install .
 ```
 
 
+## Run tests
+
+```bash
+python -m unittest tests
+```
+
+
 ## Usage
 
 Import `isotools_extensions` after importing `isotools`.
