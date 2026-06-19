@@ -194,13 +194,14 @@ def get_gene_last_exons(gene: Gene, **kwargs) -> dict:
     trids = gene.filter_transcripts(**kwargs)
     last_exons = {}
     for trid, transcript in enumerate(gene.transcripts):
+        if trid not in trids:
+            continue
         last_exon_start = (
             transcript["exons"][-1][0]
             if gene.strand == "+"
             else transcript["exons"][0][1]
         )
-        if trid in trids:
-            last_exons[last_exon_start] = [*last_exons.get(last_exon_start, []), trid]
+        last_exons[last_exon_start] = [*last_exons.get(last_exon_start, []), trid]
     return last_exons
 
 
