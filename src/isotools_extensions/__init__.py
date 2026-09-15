@@ -18,6 +18,7 @@ from .gene_plots import (
     sashimi_figure_altsplice_result,
 )
 from .psi_test import test_ale_psi, test_apa_psi
+from .io import to_gtf
 
 # Monkeypatch
 Transcriptome.test_alternative_pas = test_alternative_pas
@@ -33,3 +34,4 @@ Gene.plot_gene_terminal_peaks = plot_gene_terminal_peaks
 Gene.plot_gene_terminal_pileup = plot_gene_terminal_pileup
 Gene.plot_transcript_terminal_peaks = plot_transcript_terminal_peaks
 Gene.plot_transcript_terminal_pileup = plot_transcript_terminal_pileup
+Gene._to_gtf = to_gtf
