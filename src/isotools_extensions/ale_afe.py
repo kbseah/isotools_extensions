@@ -397,6 +397,7 @@ def test_ale_afe(
     min_alt_fraction: float = 0.01,  # different from Isotools default
     min_n: int = 5,
     min_sa: float = 0.51,
+    min_sample_relcov: float = 0.1,
     test: (
         str | Callable
     ) = "auto",  # either string with test name or a custom test function
@@ -431,6 +432,8 @@ def test_ale_afe(
     :param min_sa: Minimum number of samples with sufficient coverage to
         consider an event. If between 0 and 1, interpreted as fraction of total
         samples.
+    :param min_sample_relcov: Isoforms being compared must represent at least
+        this fraction of total per-sample coverage in all samples being compared.
     :param test: Statistical test to use. Either a string with the test name
         (see isotools._transcriptome_stats.TESTS) or a custom test function
         with signature test(x: list, n: list) -> (pvalue: float, params: tuple).
@@ -455,7 +458,7 @@ def test_ale_afe(
             ):
                 junction_cov = gene.coverage[:, setB].sum(1)
                 total_cov = gene.coverage[:, setA].sum(1) + junction_cov
-                if total_cov[sidx].sum() < min_total:
+                if total_cov[sidx].sum() < min_total: # TODO `sidx` not defined
                     continue
                 alt_fraction = junction_cov[sidx].sum() / total_cov[sidx].sum()
                 if (
@@ -463,10 +466,19 @@ def test_ale_afe(
                     or alt_fraction > 1 - min_alt_fraction
                 ):
                     continue
-                x = [junction_cov[grp] for grp in grp_idx]
+                # Coverage of spliced-in isoforms (B), per sample, by group
+                x = [junction_cov[grp] for grp in grp_idx] # TODO `grp_idx` not defined
+                # Total coverage of isoforms being compared, per sample, by group
                 n = [total_cov[grp] for grp in grp_idx]
                 if sum((ni >= min_n).sum() for ni in n[:2]) < min_sa:
                     continue
+                # Total coverage per sample, by group
+                grp_sample_cov = [[gene.coverage.sum(axis=1)[s] for s in g] for g in grp_idx]
+                # Are transcripts being compared representative of gene total cov?
+                grp_sample_cov_flat = np.array([s for g in grp_sample_cov for s in g])
+                n_flat = np.array([s for g in n for s in g])
+                pass_sample_relcov = all(i > min_sample_relcov for i in n_flat / grp_sample_cov_flat)
+
                 pval, params = test(x[:2], n[:2])
                 if np.isnan(pval):
                     continue
@@ -491,6 +503,8 @@ def test_ale_afe(
                         setB,
                         x,
                         n,
+                        grp_sample_cov,
+                        pass_sample_relcov,
                         coord,
                         *list(params),
                         *covs,
@@ -534,6 +548,8 @@ def test_ale_afe(
         "trB",
         "x",
         "n",
+        "grp_sample_cov",
+        "pass_sample_relcov",
         "coord",
     ]
     colnames += [

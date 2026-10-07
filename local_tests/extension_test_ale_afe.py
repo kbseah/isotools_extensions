@@ -35,6 +35,7 @@ if __name__ == "__main__":
         # groups={"testis": ["s269_2"] ,"carcass": ["s269_3"] },
         min_total=100,
         min_alt_fraction=0.01,
+        min_sample_relcov=0.1,
         query="not NOVEL_GENE and EXPRESSED",
     )
 
