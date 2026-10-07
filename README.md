@@ -29,6 +29,8 @@ pip install .
 
 ## Run tests
 
+After activating the venv
+
 ```bash
 python -m unittest tests
 ```
