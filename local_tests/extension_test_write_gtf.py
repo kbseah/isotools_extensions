@@ -24,8 +24,8 @@ if __name__ == "__main__":
     logger.info("Loading transcriptome")
     isoseq = isotools.Transcriptome.load(infile)
 
-    isoseq.write_gtf(
+    isoseq.write_gtf_with_cds(
         fn=outfile,
-        region="AaegL5_1",
+        region="AaegL5_1:0-10000000",
         query="FSM or (SUBSTANTIAL and not (INTERNAL_PRIMING or FRAGMENT))",
     )
