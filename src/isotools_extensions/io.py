@@ -131,8 +131,10 @@ def cds_intervals_to_gtf(gene: Gene, trid: int, source: str = "isoseq") -> list[
         return []
     # Assumes that exon intervals are already sorted by isotools!
     cds_intervals, start_codon, stop_codon = get_cds_intervals(gene, trid)
+    if cds_intervals is None:
+        return []
     cds_frames = get_cds_frames([i[1] - i[0] for i in cds_intervals], gene.strand)
-    if cds_intervals is None or cds_frames is None:
+    if cds_frames is None:
         return []
     # start/stop codons may span exon-exon boundary
     start_codon_frames = get_cds_frames([i[1] - i[0] for i in start_codon], gene.strand)
@@ -188,15 +190,15 @@ def write_gtf_with_cds(
             genewise=True,
             **filter_args,
         ):
-            for trid in transcript_ids:
-                lines = gene._to_gtf(transcript_ids=[trid], source=source)
-                cds_lines = cds_intervals_to_gtf(gene, trid=trid, source=source)
-                f.write(
-                    "\n".join(
-                        (
-                            "\t".join(str(field) for field in line)
-                            for line in [*lines, *cds_lines]
-                        )
-                    )
-                    + "\n"
+            lines = gene._to_gtf(transcript_ids=transcript_ids, source=source)
+            cds_lines = [
+                cds_intervals_to_gtf(gene, trid=trid, source=source)
+                for trid in transcript_ids
+            ]
+            f.write(
+                "\n".join(
+                    "\t".join(str(field) for field in line)
+                    for line in [*lines, *cds_lines]
                 )
+                + "\n"
+            )
