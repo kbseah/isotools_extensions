@@ -50,11 +50,13 @@ def get_cds_frames(lengths: list[int], strand: str) -> list[int]:
     :returns: List of frames for each segment.
     """
     if sum(lengths) % 3 != 0:
-        raise ValueError("CDS total length must be multiple of 3")
+        logger.warning("CDS total length must be multiple of 3")
+        return None
     if strand == "-":
         lengths = lengths[::-1]
     elif strand != "+":
-        raise ValueError("strand must be either '+' or '-'")
+        logger.warning("strand must be either '+' or '-'")
+        return None
     # each segment's frame depends on total length of preceding segments
     # length of last segment doesn't matter
     cumul_lens = [sum(lengths[0:i]) for i in range(1, len(lengths))]
@@ -81,6 +83,7 @@ def get_cds_intervals(gene: Gene, trid: int) -> tuple[list, list, list]:
     """
     transcript = gene.transcripts[trid]
     if "ORF" not in transcript:
+        logger.debug("No ORF reported in gene %s transcript %s", gene.id, str(trid))
         return None
     orfs, orfe = transcript["ORF"][0:2]
     cds_intervals = []
@@ -95,7 +98,8 @@ def get_cds_intervals(gene: Gene, trid: int) -> tuple[list, list, list]:
         cds_intervals.append((mystart, myend))
     cds_len = sum(i[1] - i[0] for i in cds_intervals)
     if cds_len % 3 != 0:
-        raise ValueError("CDS total length should be multiple of 3")
+        logger.warning("CDS total length should be multiple of 3; gene %s transcript %s", gene.id, str(trid))
+        return None, None, None
     # get start, stop codon and strip stop codon
     # isotools includes stop codon in ORF but in GTF standard stop codon is
     # excluded from CDS feature
@@ -128,6 +132,8 @@ def cds_intervals_to_gtf(gene: Gene, trid: int, source: str = "isoseq") -> list[
     # Assumes that exon intervals are already sorted by isotools!
     cds_intervals, start_codon, stop_codon = get_cds_intervals(gene, trid)
     cds_frames = get_cds_frames([i[1] - i[0] for i in cds_intervals], gene.strand)
+    if cds_intervals is None or cds_frames is None:
+        return []
     # start/stop codons may span exon-exon boundary
     start_codon_frames = get_cds_frames([i[1] - i[0] for i in start_codon], gene.strand)
     stop_codon_frames = get_cds_frames([i[1] - i[0] for i in stop_codon], gene.strand)
