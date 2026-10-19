@@ -17,7 +17,7 @@ formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(messag
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
-infile = "/data/CaiyuLab/aaeg-tra2b-isoforms/results/isotools/AaegyptiLVP_AGWG.VectorBase-68/transcriptome_isotools.with_orfs.pkl"
+infile = "/data/CaiyuLab/aaeg-sex-isoforms/results/isotools/AaegyptiLVP_AGWG.VectorBase-71/transcriptome_isotools.with_orfs.pkl"
 outfile = "test_write_gtf.gtf"
 
 if __name__ == "__main__":
@@ -26,6 +26,5 @@ if __name__ == "__main__":
 
     isoseq.write_gtf_with_cds(
         fn=outfile,
-        region="AaegL5_1:0-10000000",
         query="FSM or (SUBSTANTIAL and not (INTERNAL_PRIMING or FRAGMENT))",
     )
