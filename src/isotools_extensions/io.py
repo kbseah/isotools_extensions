@@ -93,8 +93,8 @@ def get_cds_intervals(gene: Gene, trid: int) -> tuple[list, list, list]:
         if exons > orfe:
             continue
         # kiv orf may be contained in one exon
-        mystart = orfs if (orfs > exons and orfs < exone) else exons
-        myend = orfe if (orfe > exons and orfe < exone) else exone
+        mystart = orfs if (orfs > exons and orfs <= exone) else exons
+        myend = orfe if (orfe >= exons and orfe < exone) else exone
         cds_intervals.append((mystart, myend))
     cds_len = sum(i[1] - i[0] for i in cds_intervals)
     if cds_len % 3 != 0:
@@ -195,10 +195,11 @@ def write_gtf_with_cds(
                 cds_intervals_to_gtf(gene, trid=trid, source=source)
                 for trid in transcript_ids
             ]
+            ll = [j for i in cds_lines for j in i]
             f.write(
                 "\n".join(
                     "\t".join(str(field) for field in line)
-                    for line in [*lines, *cds_lines]
+                    for line in [*lines, *ll]
                 )
                 + "\n"
             )
