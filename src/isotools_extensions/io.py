@@ -119,8 +119,8 @@ def cds_intervals_to_gtf(gene: Gene, trid: int, source: str = "isoseq") -> list[
 
     :param gene: isotools.Gene object
     :param trid: Transcript index
-    :param source: String to put in the `source` field of GTF records
-    :returns: list of tuples of GTF records
+    :param source: Value for the `source` field of feature.
+    :returns: List of tuples of GTF features.
     """
     out = []
     if "ORF" not in gene.transcripts[trid]:
@@ -131,15 +131,10 @@ def cds_intervals_to_gtf(gene: Gene, trid: int, source: str = "isoseq") -> list[
     # start/stop codons may span exon-exon boundary
     start_codon_frames = get_cds_frames([i[1] - i[0] for i in start_codon], gene.strand)
     stop_codon_frames = get_cds_frames([i[1] - i[0] for i in stop_codon], gene.strand)
-    attributes = [
-        {
-            "gene_id": gene.id,
-            "transcript_id": f"{gene.id!s}_{trid!s}",
-            "cds_id": f"{gene.id!s}_{trid!s}_CDS_{i!s}",
-        }
-        for i in range(len(cds_intervals))
-    ]
-    common_attr = f'gene_id "{gene.id!s}"; transcript_id "{gene.id!s}_{trid!s}";'
+    if gene.name:
+        common_attr = f'gene_id "{gene.id!s}"; gene_name "{gene.name!s}"; transcript_id "{gene.id!s}_{trid!s}";'
+    else:
+        common_attr = f'gene_id "{gene.id!s}"; transcript_id "{gene.id!s}_{trid!s}";'
     # <seqname> <source> <feature> <start> <end> <score> <strand> <frame> [attributes] [comments]
     for intervals, frames, feature_type in [
         (cds_intervals, cds_frames, "CDS"),
