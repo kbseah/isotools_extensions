@@ -4,7 +4,7 @@ requires-python = ">= 3.11"
 version = "0.1.13"
 authors = [{name = "Brandon Seah", email = "brandon_seah@tll.org.sg"}]
 dependencies = [
-    "isotools @ git+https://github.com/kbseah/IsoTools2.git@v2.2.0-bugfix1",
+    "isotools @ git+https://github.com/kbseah/IsoTools2.git@7764ca0",
     "numpy",
     "scipy",
     "matplotlib",
